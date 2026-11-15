@@ -3,7 +3,7 @@ on:
   push:
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -28,7 +28,8 @@ jobs:
       - name: Show lint report on failure
         if: failure()
         run: cat app/build/reports/lint-results-debug.txt || true
-      - uses: actions/upload-artifact@v4
-        with:
-          name: AcCorps-0.1.0-debug
-          path: app/build/outputs/apk/debug/*.apk
+      - name: Save private draft test APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create accorps-test-0.1.0 app/build/outputs/apk/debug/app-debug.apk --draft --target "${{ github.sha }}" --title "AcCorps 0.1.0 — test Android" --notes "Prototype Android : écoute filaire/USB, filtres, gain, WAV. Compilation, lint et tests DSP/WAV vérifiés. Validation matérielle et latence à réaliser sur téléphone."

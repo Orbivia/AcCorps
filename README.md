@@ -10,7 +10,7 @@ AudioRecord UNPROCESSED → passe-haut/passe-bas du premier ordre (Cœur 25–40
 
 ## Compilation
 JDK 17, Android SDK 35, Gradle 8.11.1 : `gradle :app:assembleDebug :app:lintDebug`.
-Le workflow GitHub construit un APK de test signé avec la clé debug éphémère du runner (désinstaller l’ancienne build si signature différente). Pas de clé de production dans le dépôt.
+Le workflow GitHub conserve l’APK dans une release de test en brouillon privée (le nom de tag doit être incrémenté pour les prochaines versions). Il construit un APK de test signé avec la clé debug éphémère du runner (désinstaller l’ancienne build si signature différente). Pas de clé de production dans le dépôt.
 
 ## Limites et validation matérielle à réaliser
 Latence réelle non mesurée ; le mode faible latence est une demande au système. Vérifier sur le téléphone de Pierre : sélection réelle du micro TRRS/USB, écoute simultanée, gain, débranchement, interruption/appels, saturation, fichiers et export, économie d’énergie. L’application n’enregistre pas en arrière-plan. Le conduit imprimé et la réponse fréquentielle du micro restent à caractériser. Les filtres ne recréent pas des fréquences absentes de la captation. Prototype, pas d’usage diagnostic validé.
