@@ -3,17 +3,17 @@ on:
   push:
     branches: [codex/apk-delivery]
 permissions:
-  contents: read
+  contents: write
 jobs:
   retrieve:
     runs-on: ubuntu-latest
     steps:
-      - name: Download exact existing release asset
+      - name: Read and verify existing draft asset
         env:
           GH_TOKEN: ${{ github.token }}
-          GH_REPO: Orbivia/AcCorps
         run: |
-          gh release download accorps-test-0.3.0 --pattern app-debug.apk --dir /tmp/accorps-delivery
+          mkdir -p /tmp/accorps-delivery
+          gh api repos/Orbivia/AcCorps/releases/assets/752352524 -H 'Accept: application/octet-stream' > /tmp/accorps-delivery/app-debug.apk
           python3 - <<'PY'
           import pathlib,base64,hashlib
           data=pathlib.Path('/tmp/accorps-delivery/app-debug.apk').read_bytes()
