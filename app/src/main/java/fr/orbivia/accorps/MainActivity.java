@@ -31,7 +31,7 @@ public final class MainActivity extends Activity {
   engine=new AudioEngine(this,new AudioEngine.Listener() {
    long last;
    public void block(short[] d,int n) { if(SystemClock.elapsedRealtime()-last>60) { last=SystemClock.elapsedRealtime(); short[] copy=Arrays.copyOf(d,n); ui.post(()->wave.update(copy)); } }
-   public void ended(String error) { ui.post(()->{ listen.setText("Démarrer l’écoute"); record.setText("●  Enregistrer"); record.setEnabled(false); state.setText(error==null?"Prêt pour une nouvelle écoute":error); if(recording!=null) { File saved=recording; recording=null; name(saved); } }); }
+   public void ended(String error) { ui.post(()->{ if(isDestroyed() || isFinishing()) return; listen.setText("Démarrer l’écoute"); record.setText("●  Enregistrer"); record.setEnabled(false); state.setText(error==null?"Prêt pour une nouvelle écoute":error); if(recording!=null) { File saved=recording; recording=null; name(saved); } }); }
   });
   getWindow().setStatusBarColor(paper); getWindow().setNavigationBarColor(paper);
   getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
@@ -69,6 +69,7 @@ public final class MainActivity extends Activity {
  @Override public void onRequestPermissionsResult(int r,String[] p,int[] grants) { super.onRequestPermissionsResult(r,p,grants); if(r==1 && grants.length>0 && grants[0]==PackageManager.PERMISSION_GRANTED) live(); else state.setText("Autorisation microphone nécessaire pour écouter et enregistrer"); }
  private void name(File f) {
   if(f==null || !f.exists()) return;
+  if(isDestroyed() || isFinishing() || !hasWindowFocus()) { library(); return; }
   EditText input=new EditText(this); input.setSingleLine(); input.setText(f.getName().replace(".wav",""));
   new AlertDialog.Builder(this).setTitle("Nom de la session").setView(input).setPositiveButton("Enregistrer",(d,w)->{ String label=input.getText().toString().trim().replaceAll("[^\\p{L}\\p{N} _-]","_"); if(!label.isEmpty()) { File target=new File(f.getParentFile(),label+".wav"); if(!target.equals(f) && (target.exists() || !f.renameTo(target))) Toast.makeText(this,"Nom indisponible : nom d’origine conservé",Toast.LENGTH_LONG).show(); } library(); }).setNegativeButton("Garder le nom",(d,w)->library()).setOnCancelListener(d->library()).show();
  }
@@ -97,11 +98,11 @@ public final class MainActivity extends Activity {
  private void space(int n){Space s=new Space(this);page.addView(s,new LinearLayout.LayoutParams(1,dp(n)));}
  private TextView text(String s,int size,int color){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);page.addView(t);return t;}
  private GradientDrawable round(int color){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(20));return d;}
- private Button button(String label,LinearLayout parent){Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextColor(ink);b.setTextSize(14);b.setMinHeight(dp(52));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(parent.getOrientation()==0?0:-1,-2,parent.getOrientation()==0?1:0);p.setMargins(dp(2),dp(3),dp(2),dp(3));parent.addView(b,p);return b;}
+ private Button button(String label,LinearLayout parent){Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextColor(ink);b.setTextSize(14);b.setMinHeight(dp(52));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(parent.getOrientation()==LinearLayout.HORIZONTAL?0:-1,-2,parent.getOrientation()==LinearLayout.HORIZONTAL?1:0);p.setMargins(dp(2),dp(3),dp(2),dp(3));parent.addView(b,p);return b;}
  private class Wave extends View {
-  private short[] data=new short[0]; private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+  private short[] data=new short[0]; private final Path trace=new Path(); private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
   Wave(Context c){super(c);setContentDescription("Forme d’onde audio filtrée");}
   void update(short[] d){data=d;invalidate();}
-  protected void onDraw(Canvas c){super.onDraw(c);paint.setColor(Color.rgb(220,230,224));paint.setStrokeWidth(dp(1));c.drawLine(0,getHeight()/2f,getWidth(),getHeight()/2f,paint);if(data.length<2)return;paint.setColor(teal);paint.setStrokeWidth(dp(2));Path p=new Path();for(int i=0;i<data.length;i++){float x=i*getWidth()/(float)(data.length-1),y=getHeight()/2f-data[i]/32768f*getHeight()*.45f;if(i==0)p.moveTo(x,y);else p.lineTo(x,y);}paint.setStyle(Paint.Style.STROKE);c.drawPath(p,paint);paint.setStyle(Paint.Style.FILL);}
+  protected void onDraw(Canvas c){super.onDraw(c);paint.setColor(Color.rgb(220,230,224));paint.setStrokeWidth(dp(1));c.drawLine(0,getHeight()/2f,getWidth(),getHeight()/2f,paint);if(data.length<2)return;paint.setColor(teal);paint.setStrokeWidth(dp(2));Path p=trace;p.reset();for(int i=0;i<data.length;i++){float x=i*getWidth()/(float)(data.length-1),y=getHeight()/2f-data[i]/32768f*getHeight()*.45f;if(i==0)p.moveTo(x,y);else p.lineTo(x,y);}paint.setStyle(Paint.Style.STROKE);c.drawPath(p,paint);paint.setStyle(Paint.Style.FILL);}
  }
 }
