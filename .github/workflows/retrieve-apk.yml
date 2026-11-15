@@ -1,0 +1,25 @@
+name: Retrieve existing AcCorps APK
+on:
+  push:
+    branches: [codex/apk-delivery]
+permissions:
+  contents: read
+jobs:
+  retrieve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download exact existing release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: Orbivia/AcCorps
+        run: |
+          gh release download accorps-test-0.3.0 --pattern app-debug.apk --dir /tmp/accorps-delivery
+          python3 - <<'PY'
+          import pathlib,base64,hashlib
+          data=pathlib.Path('/tmp/accorps-delivery/app-debug.apk').read_bytes()
+          assert len(data)==38593
+          assert hashlib.sha256(data).hexdigest()=='4ea92b416071eff9dbdc06e5f18dd154c1069f56d3be583fb6b821b297123d36'
+          encoded=base64.b64encode(data).decode()
+          for i,start in enumerate(range(0,len(encoded),8192)):
+              print(f'APK_CHUNK_{i:03d}:'+encoded[start:start+8192])
+          PY
