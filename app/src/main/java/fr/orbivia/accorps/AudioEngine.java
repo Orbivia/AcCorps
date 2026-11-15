@@ -11,8 +11,7 @@ public final class AudioEngine {
  private volatile boolean running;
  private Thread worker;
  private Wav wav;
- public volatile int profile = 0;
- public volatile float gainDb = 0;
+ public volatile Dsp.Settings settings = new Dsp.Settings(25,400,0,true,false);
  private volatile AudioTrack output;
  public AudioEngine(Context c, Listener l) { manager=(AudioManager)c.getSystemService(Context.AUDIO_SERVICE); listener=l; }
  private boolean wired(AudioDeviceInfo d) { return d.getType()==AudioDeviceInfo.TYPE_WIRED_HEADSET || d.getType()==AudioDeviceInfo.TYPE_USB_HEADSET; }
@@ -60,7 +59,7 @@ public final class AudioEngine {
     if(routed!=null && routed.getId()!=sink.getId()) throw new IOException("La sortie audio a changé : écoute arrêtée");
     if(mic!=null && mic.getRoutedDevice()!=null && mic.getRoutedDevice().getId()!=source.getId()) throw new IOException("La source microphone a changé");
     synchronized(this) { if(wav!=null) wav.write(raw,n); }
-    dsp.process(raw,processed,n,profile,gainDb);
+    dsp.process(raw,processed,n,settings);
     int offset=0; while(offset<n && running) { int written=track.write(processed,offset,n-offset,AudioTrack.WRITE_BLOCKING); if(written<0) throw new IOException("Sortie audio interrompue"); offset+=written; }
     listener.block(processed,n);
    }

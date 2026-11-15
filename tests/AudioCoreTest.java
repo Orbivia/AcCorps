@@ -3,7 +3,12 @@ import java.io.*;
 public class AudioCoreTest {
  static void require(boolean b,String m){if(!b)throw new AssertionError(m);}
  static double response(int profile,int hz){Dsp d=new Dsp();short[] in=new short[48000],out=new short[48000];for(int i=0;i<in.length;i++)in[i]=(short)(1000*Math.sin(2*Math.PI*hz*i/48000));d.process(in,out,in.length,profile,0);double sum=0;for(int i=24000;i<48000;i++)sum+=out[i]*(double)out[i];return Math.sqrt(sum/24000);}
+ static double filteredResponse(Dsp.Settings settings,int hz){Dsp d=new Dsp();short[] in=new short[240000],out=new short[240000];for(int i=0;i<in.length;i++)in[i]=(short)(1000*Math.sin(2*Math.PI*hz*i/48000));d.process(in,out,in.length,settings);double sum=0;for(int i=192000;i<240000;i++)sum+=out[i]*(double)out[i];return Math.sqrt(sum/48000);}
  public static void main(String[] a)throws Exception{
+  require(filteredResponse(new Dsp.Settings(20,200,0,true,false),2000)<filteredResponse(new Dsp.Settings(20,4000,0,true,false),2000)/4,"Live cutoff changes response");
+  require(filteredResponse(new Dsp.Settings(10,4000,0,true,true),50)<filteredResponse(new Dsp.Settings(10,4000,0,true,false),50)/10,"50 Hz notch rejects mains");
+  Dsp smooth=new Dsp();short[] dc=new short[10000],before=new short[10000],after=new short[10000];java.util.Arrays.fill(dc,(short)1000);smooth.process(dc,before,dc.length,new Dsp.Settings(25,400,0,false,false));smooth.process(dc,after,dc.length,new Dsp.Settings(300,3000,24,false,true));require(Math.abs(after[0]-before[9999])<100,"Gain change smoothed across blocks");
+  Dsp.Settings invalid=new Dsp.Settings(500,20,Double.NaN,true,false);require(invalid.highHz>invalid.lowHz && Double.isFinite(invalid.gainDb),"Parameter validation");
   require(response(0,100)>response(0,4000)*5,"Heart rejects high frequencies");
   require(response(1,600)>response(1,10)*4,"Lungs rejects near DC");
   Dsp d=new Dsp();short[] in=new short[10000],out=new short[10000];java.util.Arrays.fill(in,Short.MAX_VALUE);d.process(in,out,in.length,2,24);for(short x:out)require(Math.abs((int)x)<=24000,"Output bound");
