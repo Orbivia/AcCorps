@@ -32,4 +32,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create accorps-test-0.3.0 app/build/outputs/apk/debug/app-debug.apk --draft --target "${{ github.sha }}" --title "AcCorps 0.3.0 — Android test" --notes "English interface, PrintLeft-style adaptive light/dark cards and yellow accents, Listen/Recordings/Help navigation, terms-of-use info bubble. Realtime audio filters and raw WAV recordings. Build, lint and DSP/WAV checks passed. Hardware validation remains necessary."
+          if gh release view accorps-test-0.3.0 >/dev/null 2>&1; then
+            test "$(gh release view accorps-test-0.3.0 --json isDraft --jq .isDraft)" = true
+            gh release edit accorps-test-0.3.0 --draft --target "${{ github.sha }}" --title "AcCorps 0.3.0 — Android test"
+            gh release upload accorps-test-0.3.0 app/build/outputs/apk/debug/app-debug.apk --clobber
+          else
+            gh release create accorps-test-0.3.0 app/build/outputs/apk/debug/app-debug.apk --draft --target "${{ github.sha }}" --title "AcCorps 0.3.0 — Android test" --notes "English by default, PrintLeft light/dark theme, terms-of-use info bubble, realtime filters and raw WAV sessions. Hardware validation remains necessary."
+          fi
