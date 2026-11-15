@@ -5,7 +5,7 @@ public final class Wav implements Closeable {
  private long bytes;
  public Wav(File path) throws IOException { f = new RandomAccessFile(path, "rw"); f.setLength(0); f.write(new byte[44]); }
  public synchronized void write(short[] samples, int n) throws IOException {
-  if(bytes + n * 2L > 0xfffffff0L - 44) throw new IOException("Enregistrement trop long");
+  if(bytes + n * 2L > 0xfffffff0L - 44) throw new IOException("Recording is too long.");
   byte[] b = new byte[n * 2];
   for (int i=0; i<n; i++) { b[2*i]=(byte)samples[i]; b[2*i+1]=(byte)(samples[i]>>8); }
   f.write(b); bytes += b.length;
