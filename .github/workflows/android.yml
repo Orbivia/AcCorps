@@ -14,10 +14,16 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
       - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - run: |
+          mkdir -p /tmp/audio-test
+          javac -d /tmp/audio-test app/src/main/java/fr/orbivia/accorps/Dsp.java app/src/main/java/fr/orbivia/accorps/Wav.java tests/AudioCoreTest.java
+          java -cp /tmp/audio-test AudioCoreTest
       - run: gradle :app:assembleDebug :app:lintDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:

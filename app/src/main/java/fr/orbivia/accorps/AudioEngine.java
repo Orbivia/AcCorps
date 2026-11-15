@@ -27,9 +27,12 @@ public final class AudioEngine {
   running=true; worker=new Thread(()->loop(playback),"AcCorps-audio"); worker.start();
  }
  public void stop() { running=false; AudioTrack t=output; if(t!=null) try { t.pause(); t.flush(); } catch(IllegalStateException ignored) {} }
+ @android.annotation.SuppressLint("MissingPermission")
  private void loop(File playback) {
   AudioRecord mic=null; AudioTrack track=null; RandomAccessFile file=null; String error=null;
+  AudioFocusRequest focus=new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT).setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build()).setOnAudioFocusChangeListener(change->{ if(change<0) stop(); }).build();
   try {
+   if(manager.requestAudioFocus(focus)!=AudioManager.AUDIOFOCUS_REQUEST_GRANTED) throw new IOException("Sortie audio occupée");
    Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO);
    AudioDeviceInfo sink=outputDevice(), source=inputDevice();
    if(sink==null || (playback==null && source==null)) throw new IOException("Brancher des écouteurs filaires avec microphone ou un casque USB compatible");
@@ -62,11 +65,12 @@ public final class AudioEngine {
     listener.block(processed,n);
    }
    // Allow the last queued playback block to finish before releasing the track.
-   if(file!=null && running) { int target=track.getPlaybackHeadPosition(); Thread.sleep(80); }
+   if(file!=null && running) { Thread.sleep(80); }
   } catch(Exception e) { error=e.getMessage(); }
   finally {
    if(mic!=null) { try { mic.stop(); } catch(Exception ignored) {} mic.release(); }
    output=null;
+   manager.abandonAudioFocusRequest(focus);
    if(track!=null) { try { track.stop(); } catch(Exception ignored) {} track.release(); }
    if(file!=null) try { file.close(); } catch(IOException ignored) {}
    try { finishRecord(); } catch(IOException e) { error="Sauvegarde incomplète : "+e.getMessage(); }
