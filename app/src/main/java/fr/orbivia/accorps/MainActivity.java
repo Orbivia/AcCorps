@@ -31,8 +31,8 @@ public final class MainActivity extends Activity {
  private final Handler ui=new Handler(Looper.getMainLooper());
  private final AudioDeviceCallback devices=new AudioDeviceCallback() { @Override public void onAudioDevicesRemoved(AudioDeviceInfo[] removed) { engine.stop(); } };
  private final Runnable tick=new Runnable() { public void run() { if(engine!=null && engine.isRecording()) timer.setText(String.format(Locale.FRANCE,"%02d:%02d",(SystemClock.elapsedRealtime()-recordAt)/60000,((SystemClock.elapsedRealtime()-recordAt)/1000)%60)); ui.postDelayed(this,250); } };
- @Override public void onCreate(Bundle b) {
-  super.onCreate(b);
+ @Override public void onCreate(Bundle savedState) {
+  super.onCreate(savedState);
   engine=new AudioEngine(this,new AudioEngine.Listener() {
    long last;
    public void block(short[] d,int n) { if(SystemClock.elapsedRealtime()-last>60) { last=SystemClock.elapsedRealtime(); short[] copy=Arrays.copyOf(d,n); ui.post(()->wave.update(copy)); } }
@@ -120,7 +120,7 @@ public final class MainActivity extends Activity {
  private void space(int n){Space s=new Space(this);page.addView(s,new LinearLayout.LayoutParams(1,dp(n)));}
  private TextView text(String s,int size,int color){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);page.addView(t);return t;}
  private GradientDrawable round(int color){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(20));return d;}
- private Button button(String label,LinearLayout parent){Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextColor(ink);b.setTextSize(14);b.setTypeface(android.graphics.Typeface.create("sans-serif-medium",0));b.setBackground(round(Color.rgb(27,40,58)));b.setBackgroundTintList(null);b.setMinHeight(dp(52));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(parent.getOrientation()==LinearLayout.HORIZONTAL?0:-1,-2,parent.getOrientation()==LinearLayout.HORIZONTAL?1:0);p.setMargins(dp(2),dp(3),dp(2),dp(3));parent.addView(b,p);return b;}
+ private Button button(String label,LinearLayout parent){Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextColor(ink);b.setTextSize(14);b.setTypeface(android.graphics.Typeface.create("sans-serif-medium",Typeface.NORMAL));b.setBackground(round(Color.rgb(27,40,58)));b.setBackgroundTintList(null);b.setMinHeight(dp(52));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(parent.getOrientation()==LinearLayout.HORIZONTAL?0:-1,-2,parent.getOrientation()==LinearLayout.HORIZONTAL?1:0);p.setMargins(dp(2),dp(3),dp(2),dp(3));parent.addView(b,p);return b;}
  private class Wave extends View {
   private short[] data=new short[0]; private final Path trace=new Path(); private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
   Wave(Context c){super(c);setContentDescription("Forme d’onde audio filtrée");}
