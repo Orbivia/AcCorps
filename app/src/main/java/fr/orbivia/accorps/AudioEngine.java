@@ -12,6 +12,8 @@ public final class AudioEngine {
  private volatile boolean running;
  private Thread worker;
  private Wav wav;
+ private volatile long processedFrames;
+ public long processedFrames(){return processedFrames;}
  public volatile Dsp.Settings settings = new Dsp.Settings(25,400,0,true,false);
  private volatile AudioTrack output;
  public AudioEngine(Context c, Listener l) { context=c.getApplicationContext(); manager=(AudioManager)c.getSystemService(Context.AUDIO_SERVICE); listener=l; }
@@ -24,7 +26,7 @@ public final class AudioEngine {
  public synchronized void finishRecord() throws IOException { if(wav!=null) { Wav w=wav; wav=null; w.close(); } }
  public synchronized void start(File playback) {
   if(worker!=null) return;
-  running=true; worker=new Thread(()->loop(playback),"AcCorps-audio"); worker.start();
+  processedFrames=0;running=true; worker=new Thread(()->loop(playback),"AcCorps-audio"); worker.start();
  }
  public void stop() { running=false; AudioTrack t=output; if(t!=null) try { t.pause(); t.flush(); } catch(IllegalStateException ignored) {} }
  @android.annotation.SuppressLint("MissingPermission")
@@ -62,6 +64,7 @@ public final class AudioEngine {
     synchronized(this) { if(wav!=null) wav.write(raw,n); }
     dsp.process(raw,processed,n,settings);
     int offset=0; while(offset<n && running) { int written=track.write(processed,offset,n-offset,AudioTrack.WRITE_BLOCKING); if(written<0) throw new IOException(context.getString(R.string.err_write)); offset+=written; }
+    processedFrames+=n;
     listener.block(processed,n);
    }
    // Allow the last queued playback block to finish before releasing the track.

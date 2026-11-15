@@ -22,8 +22,9 @@ jobs:
       - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
       - run: |
           mkdir -p /tmp/audio-test
-          javac -d /tmp/audio-test app/src/main/java/fr/orbivia/accorps/Dsp.java app/src/main/java/fr/orbivia/accorps/Wav.java tests/AudioCoreTest.java
+          javac -d /tmp/audio-test app/src/main/java/fr/orbivia/accorps/Dsp.java app/src/main/java/fr/orbivia/accorps/Wav.java app/src/main/java/fr/orbivia/accorps/ScopeHistory.java tests/AudioCoreTest.java tests/ScopeHistoryTest.java
           java -cp /tmp/audio-test AudioCoreTest
+          java -cp /tmp/audio-test ScopeHistoryTest
       - run: gradle :app:assembleDebug :app:lintDebug --no-daemon
       - name: Show lint report on failure
         if: failure()
@@ -32,10 +33,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view accorps-test-0.3.0 >/dev/null 2>&1; then
-            test "$(gh release view accorps-test-0.3.0 --json isDraft --jq .isDraft)" = true
-            gh release edit accorps-test-0.3.0 --draft --target "${{ github.sha }}" --title "AcCorps 0.3.0 — Android test"
-            gh release upload accorps-test-0.3.0 app/build/outputs/apk/debug/app-debug.apk --clobber
+          if gh release view accorps-test-0.4.0 >/dev/null 2>&1; then
+            test "$(gh release view accorps-test-0.4.0 --json isDraft --jq .isDraft)" = true
+            gh release edit accorps-test-0.4.0 --draft --target "${{ github.sha }}" --title "AcCorps 0.4.0 — Android test"
+            gh release upload accorps-test-0.4.0 app/build/outputs/apk/debug/app-debug.apk --clobber
           else
-            gh release create accorps-test-0.3.0 app/build/outputs/apk/debug/app-debug.apk --draft --target "${{ github.sha }}" --title "AcCorps 0.3.0 — Android test" --notes "English by default, PrintLeft light/dark theme, terms-of-use info bubble, realtime filters and raw WAV sessions. Hardware validation remains necessary."
+            gh release create accorps-test-0.4.0 app/build/outputs/apk/debug/app-debug.apk --draft --target "${{ github.sha }}" --title "AcCorps 0.4.0 — Android test" --notes "Essential landscape scope with complete scrolling audio history, display speed choices, pause scope, gear-based numeric filters, waveform recording previews and WAV export. No range sliders. Hardware validation remains necessary."
           fi
+      - name: Prepare verified APK delivery
+        run: |
+          python3 - <<'PYAPK'
+          import pathlib,hashlib,base64
+          data=pathlib.Path('app/build/outputs/apk/debug/app-debug.apk').read_bytes()
+          print('APK_SIZE:'+str(len(data)))
+          print('APK_SHA256:'+hashlib.sha256(data).hexdigest())
+          encoded=base64.b64encode(data).decode()
+          for i,start in enumerate(range(0,len(encoded),8192)):
+              print(f'APK_CHUNK_{i:03d}:'+encoded[start:start+8192])
+          PYAPK

@@ -6,122 +6,114 @@ import android.os.*;
 import android.content.*;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
-import android.content.res.ColorStateList;
 import android.graphics.*;
 import android.graphics.drawable.GradientDrawable;
 import android.media.*;
 import android.net.Uri;
+import android.text.InputType;
+import android.text.TextUtils;
 import android.view.*;
 import android.widget.*;
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.*;
 
 public final class MainActivity extends Activity {
- private static final int YELLOW=0xFFFFCC32, INK=0xFF25323C;
- private int bg,fg,muted,surface,line,accent,tab;
+ private static final int YELLOW=0xFFFFCC32,INK=0xFF25323C;
+ private int bg,fg,muted,surface,line,accent;
  private AudioEngine engine;
- private LinearLayout body,listenPanel,recordingsPanel,helpPanel,sessions;
- private TextView state,timer,gainLabel,lowLabel,highLabel;
- private Button listen,record;
- private final TextView[] nav=new TextView[3];
- private final Button[] presets=new Button[3];
- private SeekBar lowSlider,highSlider;
- private Switch filterSwitch,notchSwitch;
- private boolean syncing;
- private Wave wave;
- private long recordAt;
+ private final ScopeHistory history=new ScopeHistory(20000);
+ private ScopeView scope;
+ private LinearLayout scopePanel,recordingsPanel,sessions;
+ private TextView state,timer,displayInfo;
+ private Button listen,record,stop,back;
  private File recording,export;
+ private boolean playback,showingRecordings;
+ private long recordingStartFrame;
+ private double scrollSpeed=1;
  private final Handler ui=new Handler(Looper.getMainLooper());
+ private final ExecutorService previews=Executors.newSingleThreadExecutor();
  private final AudioDeviceCallback devices=new AudioDeviceCallback(){@Override public void onAudioDevicesRemoved(AudioDeviceInfo[] removed){engine.stop();}};
- private final Runnable tick=new Runnable(){public void run(){if(engine!=null&&engine.isRecording())timer.setText(String.format(Locale.ROOT,"%02d:%02d",(SystemClock.elapsedRealtime()-recordAt)/60000,((SystemClock.elapsedRealtime()-recordAt)/1000)%60));ui.postDelayed(this,250);}};
- private String s(int id,Object... args){return getString(id,args);}
+ private final Runnable tick=new Runnable(){public void run(){if(engine!=null&&engine.isRunning()){if(!scope.isPaused()&&!showingRecordings)scope.invalidate();long frames=engine.processedFrames()-(engine.isRecording()?recordingStartFrame:0);timer.setText(time(Math.max(0,frames/48000)));}ui.postDelayed(this,33);}};
+ private String s(int id,Object...args){return getString(id,args);}
  @Override public void onCreate(Bundle savedState){
-  super.onCreate(savedState);
+  super.onCreate(savedState);getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN|WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
   boolean dark=(getResources().getConfiguration().uiMode&Configuration.UI_MODE_NIGHT_MASK)==Configuration.UI_MODE_NIGHT_YES;
   bg=dark?0xFF111820:0xFFF7F8FA;fg=dark?0xFFF2F4F6:INK;muted=dark?0xFFBAC5CE:0xFF586873;surface=dark?0xFF1C2732:Color.WHITE;line=dark?0xFF344452:0xFFE2E7EB;accent=dark?0xFFF4C928:0xFFAD8100;
-  engine=new AudioEngine(this,new AudioEngine.Listener(){
-   long last;
-   public void block(short[] d,int n){if(SystemClock.elapsedRealtime()-last>60){last=SystemClock.elapsedRealtime();short[] copy=Arrays.copyOf(d,n);ui.post(()->{if(!isDestroyed())wave.update(copy);});}}
-   public void ended(String error){ui.post(()->{if(isDestroyed()||isFinishing())return;listen.setText(R.string.listen);record.setText(R.string.record);record.setEnabled(false);record.setAlpha(.45f);state.setText(error==null?s(R.string.ready):error);if(recording!=null){File saved=recording;recording=null;name(saved);}});}
-  });
-  LinearLayout root=column();root.setBackgroundColor(bg);
-  root.setOnApplyWindowInsetsListener((v,i)->{v.setPadding(i.getSystemWindowInsetLeft(),i.getSystemWindowInsetTop(),i.getSystemWindowInsetRight(),i.getSystemWindowInsetBottom());return i;});
-  LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setPadding(dp(20),dp(8),dp(16),dp(8));
-  TextView brand=text(s(R.string.app_name),25,fg);brand.setTypeface(null,Typeface.BOLD);header.addView(brand,new LinearLayout.LayoutParams(0,-2,1));
-  Button info=new Button(this);info.setText("i");info.setAllCaps(false);info.setTextSize(20);info.setTextColor(INK);info.setBackground(shape(YELLOW));info.setBackgroundTintList(null);info.setMinimumWidth(0);info.setMinWidth(0);info.setPadding(0,0,0,0);info.setContentDescription(s(R.string.terms_info));info.setOnClickListener(v->terms());header.addView(info,new LinearLayout.LayoutParams(dp(44),dp(44)));root.addView(header);
-  ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);body=column();body.setPadding(dp(16),dp(4),dp(16),dp(8));scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-  listenPanel=column();recordingsPanel=column();helpPanel=column();body.addView(listenPanel);body.addView(recordingsPanel);body.addView(helpPanel);
-  buildListen();buildRecordings();buildHelp();
-  LinearLayout navigation=new LinearLayout(this);navigation.setBackgroundColor(surface);int[] labels={R.string.listen,R.string.recordings,R.string.help};
-  for(int i=0;i<nav.length;i++){final int index=i;nav[i]=text(s(labels[i]),13,muted);nav[i].setGravity(Gravity.CENTER);nav[i].setMinHeight(dp(56));nav[i].setFocusable(true);nav[i].setOnClickListener(v->selectTab(index));navigation.addView(nav[i],new LinearLayout.LayoutParams(0,-2,1));}
-  root.addView(navigation);setContentView(root);root.requestApplyInsets();selectTab(savedState==null?0:Math.min(2,savedState.getInt("tab")));
-  ((AudioManager)getSystemService(AUDIO_SERVICE)).registerAudioDeviceCallback(devices,ui);ui.post(tick);
+  engine=new AudioEngine(this,new AudioEngine.Listener(){public void block(short[] data,int n){history.append(data,n);}public void ended(String error){ui.post(()->{if(isDestroyed()||isFinishing())return;listen.setText(R.string.listen);record.setText(R.string.record);record.setEnabled(false);record.setAlpha(.45f);stop.setVisibility(View.GONE);scope.setPaused(false);scope.invalidate();state.setText(error==null?s(R.string.ready):error);if(error!=null)Toast.makeText(MainActivity.this,error,Toast.LENGTH_LONG).show();if(recording!=null){File saved=recording;recording=null;saveRecording(saved);}playback=false;});}});
+  loadSettings();
+  LinearLayout root=column();root.setBackgroundColor(bg);root.setOnApplyWindowInsetsListener((v,i)->{v.setPadding(i.getSystemWindowInsetLeft(),i.getSystemWindowInsetTop(),i.getSystemWindowInsetRight(),i.getSystemWindowInsetBottom());return i;});
+  LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setPadding(dp(16),dp(2),dp(12),dp(2));
+  back=button("‹",header,false);back.setContentDescription(s(R.string.back_scope));back.setOnClickListener(v->showRecordings(false));back.setVisibility(View.GONE);
+  TextView brand=text(s(R.string.app_name),23,fg);brand.setTypeface(null,Typeface.BOLD);header.addView(brand);
+  state=text(s(R.string.connect),12,muted);state.setPadding(dp(18),0,dp(8),0);state.setMaxLines(2);state.setEllipsize(TextUtils.TruncateAt.END);header.addView(state,new LinearLayout.LayoutParams(0,-2,1));
+  stop=button(s(R.string.stop),header,false);stop.setOnClickListener(v->engine.stop());stop.setVisibility(View.GONE);
+  icon(header,android.R.drawable.ic_menu_info_details,R.string.terms_info,this::terms);icon(header,android.R.drawable.ic_menu_manage,R.string.settings_info,this::settings);
+  root.addView(header,new LinearLayout.LayoutParams(-1,dp(48)));
+  FrameLayout content=new FrameLayout(this);root.addView(content,new LinearLayout.LayoutParams(-1,0,1));scopePanel=column();scopePanel.setPadding(dp(12),dp(4),dp(12),dp(6));content.addView(scopePanel,new FrameLayout.LayoutParams(-1,-1));
+  LinearLayout chart=column();chart.setBackground(shape(surface));chart.setPadding(dp(12),0,dp(12),0);scopePanel.addView(chart,new LinearLayout.LayoutParams(-1,0,1));
+  displayInfo=text("",11,muted);displayInfo.setGravity(Gravity.END);chart.addView(displayInfo);scope=new ScopeView(this,history,fg,line,YELLOW);scope.setSpeed(scrollSpeed);chart.addView(scope,new LinearLayout.LayoutParams(-1,0,1));
+  LinearLayout transport=new LinearLayout(this);transport.setGravity(Gravity.CENTER_VERTICAL);scopePanel.addView(transport);
+  listen=button(s(R.string.listen),transport,false);listen.setOnClickListener(v->listenAction());record=button(s(R.string.record),transport,true);record.setEnabled(false);record.setAlpha(.45f);record.setOnClickListener(v->recordAction());
+  timer=text("00:00",19,fg);timer.setGravity(Gravity.CENTER);transport.addView(timer,new LinearLayout.LayoutParams(0,dp(48),1));button(s(R.string.recordings),transport,false).setOnClickListener(v->showRecordings(true));
+  recordingsPanel=column();recordingsPanel.setPadding(dp(16),dp(4),dp(16),dp(8));recordingsPanel.setVisibility(View.GONE);content.addView(recordingsPanel,new FrameLayout.LayoutParams(-1,-1));
+  TextView heading=text(s(R.string.recordings),22,fg);heading.setTypeface(null,Typeface.BOLD);recordingsPanel.addView(heading);ScrollView list=new ScrollView(this);list.setVerticalScrollBarEnabled(false);sessions=column();list.addView(sessions);recordingsPanel.addView(list,new LinearLayout.LayoutParams(-1,0,1));
+  setContentView(root);root.requestApplyInsets();updateDisplay();library();((AudioManager)getSystemService(AUDIO_SERVICE)).registerAudioDeviceCallback(devices,ui);ui.post(tick);
  }
- private void buildListen(){
-  listenPanel.addView(text(s(R.string.live_title),28,fg));
-  LinearLayout audio=card(listenPanel);state=text(s(R.string.connect),14,muted);audio.addView(state);
-  wave=new Wave(this);audio.addView(wave,new LinearLayout.LayoutParams(-1,dp(150)));
-  timer=text("00:00",30,fg);timer.setGravity(Gravity.CENTER);audio.addView(timer);
-  audio.addView(text(s(R.string.low_volume),13,muted));
-  LinearLayout transport=new LinearLayout(this);audio.addView(transport);
-  listen=button(s(R.string.listen),transport,true);record=button(s(R.string.record),transport,false);record.setEnabled(false);record.setAlpha(.45f);
-  listen.setOnClickListener(v->{if(engine.isRunning()){engine.stop();return;}if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},1);return;}live();});
-  record.setOnClickListener(v->{try{if(engine.isRecording()){engine.finishRecord();record.setText(R.string.record);File saved=recording;recording=null;name(saved);}else{File dir=new File(getFilesDir(),"sessions");if(!dir.exists()&&!dir.mkdirs())throw new IOException(s(R.string.err_save,"storage unavailable"));File target=new File(dir,"Session_"+new SimpleDateFormat("yyyyMMdd_HHmmss_SSS",Locale.ROOT).format(new Date())+".wav");engine.record(target);recording=target;recordAt=SystemClock.elapsedRealtime();timer.setText("00:00");record.setText(R.string.finish);}}catch(IOException e){state.setText(e.getMessage());}});
-  LinearLayout filters=card(listenPanel);filters.addView(text(s(R.string.filters_title),20,fg));filters.addView(text(s(R.string.live_hint),13,muted));
-  LinearLayout choices=new LinearLayout(this);filters.addView(choices);int[] names={R.string.heart,R.string.lungs,R.string.raw};
-  for(int i=0;i<3;i++){final int index=i;presets[i]=button(s(names[i]),choices,false);presets[i].setOnClickListener(v->preset(index));}
-  filterSwitch=new Switch(this);filterSwitch.setText(R.string.filters_enabled);filterSwitch.setTextColor(fg);filterSwitch.setMinHeight(dp(48));filterSwitch.setChecked(true);filters.addView(filterSwitch);
-  lowLabel=text(s(R.string.high_pass,25),15,fg);filters.addView(lowLabel);lowSlider=slider(filters,490,15);
-  highLabel=text(s(R.string.low_pass,400),15,fg);filters.addView(highLabel);highSlider=slider(filters,3900,300);
-  lowSlider.setOnSeekBarChangeListener(change(()->{if(syncing)return;int low=lowSlider.getProgress()+10;if(highSlider.getProgress()+100<low+20)highSlider.setProgress(low+20-100);applyFilters();}));
-  highSlider.setOnSeekBarChangeListener(change(()->{if(syncing)return;int high=highSlider.getProgress()+100;if(lowSlider.getProgress()+10>high-20)lowSlider.setProgress(Math.max(0,high-30));applyFilters();}));
-  notchSwitch=new Switch(this);notchSwitch.setText(R.string.notch);notchSwitch.setTextColor(fg);notchSwitch.setMinHeight(dp(48));filters.addView(notchSwitch);notchSwitch.setOnCheckedChangeListener((v,on)->applyFilters());
-  filterSwitch.setOnCheckedChangeListener((v,on)->{lowSlider.setEnabled(on);highSlider.setEnabled(on);notchSwitch.setEnabled(on);applyFilters();});
-  gainLabel=text(s(R.string.gain,0),15,fg);filters.addView(gainLabel);SeekBar gain=slider(filters,36,12);gain.setOnSeekBarChangeListener(change(()->{Dsp.Settings old=engine.settings;engine.settings=new Dsp.Settings(old.lowHz,old.highHz,gain.getProgress()-12,old.enabled,old.notch);gainLabel.setText(s(R.string.gain,gain.getProgress()-12));}));preset(0);
+ private void listenAction(){
+  if(engine.isRunning()){scope.setPaused(!scope.isPaused());listen.setText(scope.isPaused()?R.string.resume_scope:R.string.pause_scope);state.setText(scope.isPaused()?R.string.scope_paused:playback?s(R.string.playback,""):s(R.string.live_status));return;}
+  if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},1);return;}start(null);
  }
- private void buildRecordings(){recordingsPanel.addView(text(s(R.string.recordings),28,fg));recordingsPanel.addView(text(s(R.string.raw_saved),14,muted));sessions=column();recordingsPanel.addView(sessions);library();}
- private void buildHelp(){
-  helpPanel.addView(text(s(R.string.help),28,fg));LinearLayout guide=card(helpPanel);guide.addView(text(s(R.string.how_title),20,fg));guide.addView(text(s(R.string.how_body),16,fg));
-  LinearLayout usage=card(helpPanel);usage.addView(text(s(R.string.terms_title),20,fg));usage.addView(text(s(R.string.terms_hint),14,muted));button(s(R.string.terms_title),usage,false).setOnClickListener(v->terms());
-  LinearLayout about=card(helpPanel);about.addView(text(s(R.string.about),20,fg));about.addView(text(s(R.string.about_body),15,muted));
+ private void start(File file){history.clear();scope.setPaused(false);scope.invalidate();timer.setText("00:00");playback=file!=null;engine.start(file);listen.setText(R.string.pause_scope);record.setEnabled(!playback);record.setAlpha(playback?.45f:1);stop.setVisibility(View.VISIBLE);state.setText(file==null?s(R.string.live_status):s(R.string.playback,file.getName().replace(".wav","")));showRecordings(false);}
+ private void recordAction(){try{if(engine.isRecording()){engine.finishRecord();record.setText(R.string.record);File saved=recording;recording=null;saveRecording(saved);}else{File dir=new File(getFilesDir(),"sessions");if(!dir.exists()&&!dir.mkdirs())throw new IOException(s(R.string.err_save,"storage unavailable"));File target=new File(dir,"Session_"+new SimpleDateFormat("yyyyMMdd_HHmmss_SSS",Locale.ROOT).format(new Date())+".wav");engine.record(target);recording=target;recordingStartFrame=engine.processedFrames();timer.setText("00:00");record.setText(R.string.finish);}}catch(IOException e){Toast.makeText(this,e.getMessage(),Toast.LENGTH_LONG).show();}}
+ private void showRecordings(boolean show){showingRecordings=show;scopePanel.setVisibility(show?View.GONE:View.VISIBLE);recordingsPanel.setVisibility(show?View.VISIBLE:View.GONE);back.setVisibility(show?View.VISIBLE:View.GONE);if(show)library();else scope.invalidate();}
+ private void updateDisplay(){displayInfo.setText(s(R.string.display_info,s(engine.settings.enabled?R.string.filtered:R.string.original),formatSpeed(scrollSpeed)));}
+ private String formatSpeed(double value){return value==.5?"0.5":value==1?"1":"2";}
+ private void loadSettings(){android.content.SharedPreferences p=getPreferences(0);scrollSpeed=p.getFloat("scroll",1);if(scrollSpeed!=.5&&scrollSpeed!=1&&scrollSpeed!=2)scrollSpeed=1;engine.settings=new Dsp.Settings(p.getFloat("low",25),p.getFloat("high",400),p.getFloat("gain",0),p.getBoolean("enabled",true),p.getBoolean("notch",false));}
+ private void persistSettings(){Dsp.Settings d=engine.settings;getPreferences(0).edit().putFloat("scroll",(float)scrollSpeed).putFloat("low",(float)d.lowHz).putFloat("high",(float)d.highHz).putFloat("gain",(float)d.gainDb).putBoolean("enabled",d.enabled).putBoolean("notch",d.notch).apply();updateDisplay();}
+ private void settings(){
+  LinearLayout panel=column();panel.setPadding(dp(16),dp(4),dp(16),dp(8));ScrollView scroller=new ScrollView(this);scroller.setVerticalScrollBarEnabled(false);scroller.addView(panel);
+  AlertDialog dialog=new AlertDialog.Builder(this).setTitle(R.string.scope_settings).setView(scroller).setPositiveButton(R.string.close,null).create();
+  panel.addView(text(s(R.string.scroll_speed),13,muted));LinearLayout speeds=new LinearLayout(this);panel.addView(speeds);Button[] speedButtons=new Button[3];double[] choices={.5,1,2};
+  for(int i=0;i<3;i++){final double value=choices[i];speedButtons[i]=choice(formatSpeed(value)+"×",speeds,scrollSpeed==value);speedButtons[i].setOnClickListener(v->{scrollSpeed=value;scope.setSpeed(value);persistSettings();for(int j=0;j<3;j++)selected(speedButtons[j],choices[j]==scrollSpeed);});}
+  panel.addView(text(s(R.string.preset),13,muted));LinearLayout profiles=new LinearLayout(this);panel.addView(profiles);Button[] presets=new Button[3];int[] names={R.string.heart,R.string.lungs,R.string.custom};
+  Dsp.Settings initial=engine.settings;int preset=initial.enabled&&initial.lowHz==25&&initial.highHz==400?0:initial.enabled&&initial.lowHz==80&&initial.highHz==2000?1:2;
+  for(int i=0;i<3;i++)presets[i]=choice(s(names[i]),profiles,i==preset);
+  TextView[] values=new TextView[3];
+  Runnable refresh=()->{Dsp.Settings d=engine.settings;values[0].setText(s(R.string.hz_value,(int)d.lowHz));values[1].setText(s(R.string.hz_value,(int)d.highHz));values[2].setText(s(R.string.db_value,(int)d.gainDb));persistSettings();};
+  Runnable manual=()->{for(int j=0;j<3;j++)selected(presets[j],j==2);refresh.run();};
+  stepper(panel,R.string.high_pass_short,values,0,()->adjust(0,-5,manual),()->adjust(0,5,manual),()->enterValue(0,manual));
+  stepper(panel,R.string.low_pass_short,values,1,()->adjust(1,-50,manual),()->adjust(1,50,manual),()->enterValue(1,manual));
+  stepper(panel,R.string.gain_short,values,2,()->adjust(2,-1,manual),()->adjust(2,1,manual),()->enterValue(2,manual));
+  LinearLayout enabledRow=settingRow(panel,s(R.string.filters_enabled));Button[] enabledButtons={choice(s(R.string.off),enabledRow,!engine.settings.enabled),choice(s(R.string.on),enabledRow,engine.settings.enabled)};
+  LinearLayout notchRow=settingRow(panel,s(R.string.notch_short));Button[] notchButtons={choice(s(R.string.off),notchRow,!engine.settings.notch),choice(s(R.string.on),notchRow,engine.settings.notch)};
+  for(int i=0;i<2;i++){final boolean on=i==1;enabledButtons[i].setOnClickListener(v->{Dsp.Settings d=engine.settings;engine.settings=new Dsp.Settings(d.lowHz,d.highHz,d.gainDb,on,d.notch);selected(enabledButtons[0],!on);selected(enabledButtons[1],on);manual.run();});notchButtons[i].setOnClickListener(v->{Dsp.Settings d=engine.settings;engine.settings=new Dsp.Settings(d.lowHz,d.highHz,d.gainDb,d.enabled,on);selected(notchButtons[0],!on);selected(notchButtons[1],on);manual.run();});}
+  for(int i=0;i<3;i++){final int index=i;presets[i].setOnClickListener(v->{if(index<2){Dsp.Settings d=engine.settings;engine.settings=new Dsp.Settings(index==0?25:80,index==0?400:2000,d.gainDb,true,d.notch);selected(enabledButtons[0],false);selected(enabledButtons[1],true);}for(int j=0;j<3;j++)selected(presets[j],j==index);refresh.run();});}
+  button(s(R.string.reset),panel,false).setOnClickListener(v->{engine.settings=new Dsp.Settings(25,400,0,true,false);scrollSpeed=1;scope.setSpeed(1);persistSettings();dialog.dismiss();settings();});refresh.run();dialog.show();android.util.DisplayMetrics metrics=getResources().getDisplayMetrics();dialog.getWindow().setLayout(Math.min(dp(440),metrics.widthPixels-dp(32)),Math.min(dp(420),metrics.heightPixels-dp(24)));
  }
- private void terms(){TextView content=text(s(R.string.terms_body),16,fg);content.setTextIsSelectable(true);content.setPadding(dp(22),dp(12),dp(22),dp(12));ScrollView scroll=new ScrollView(this);scroll.addView(content);new AlertDialog.Builder(this).setTitle(R.string.terms_title).setView(scroll).setPositiveButton(R.string.close,null).show();}
- private void selectTab(int index){tab=index;listenPanel.setVisibility(index==0?View.VISIBLE:View.GONE);recordingsPanel.setVisibility(index==1?View.VISIBLE:View.GONE);helpPanel.setVisibility(index==2?View.VISIBLE:View.GONE);if(index==1)library();for(int i=0;i<nav.length;i++){nav[i].setTextColor(i==index?INK:muted);nav[i].setBackground(i==index?shape(YELLOW):shape(surface));nav[i].setTypeface(null,i==index?Typeface.BOLD:Typeface.NORMAL);nav[i].setSelected(i==index);}}
- private SeekBar slider(LinearLayout parent,int max,int value){SeekBar bar=new SeekBar(this);bar.setMax(max);bar.setProgress(value);bar.setMinimumHeight(dp(44));bar.setProgressTintList(ColorStateList.valueOf(accent));bar.setThumbTintList(ColorStateList.valueOf(accent));parent.addView(bar);return bar;}
- private SeekBar.OnSeekBarChangeListener change(Runnable action){return new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar v,int value,boolean user){action.run();}public void onStartTrackingTouch(SeekBar v){}public void onStopTrackingTouch(SeekBar v){}};}
- private void applyFilters(){if(syncing)return;Dsp.Settings old=engine.settings;engine.settings=new Dsp.Settings(lowSlider.getProgress()+10,highSlider.getProgress()+100,old.gainDb,filterSwitch.isChecked(),notchSwitch.isChecked());lowLabel.setText(s(R.string.high_pass,(int)engine.settings.lowHz));highLabel.setText(s(R.string.low_pass,(int)engine.settings.highHz));for(Button b:presets){b.setBackground(shape(line));b.setTextColor(fg);b.setSelected(false);}}
- private void preset(int index){syncing=true;lowSlider.setProgress(index==0?15:70);highSlider.setProgress(index==0?300:1900);filterSwitch.setChecked(index!=2);notchSwitch.setChecked(false);syncing=false;applyFilters();presets[index].setBackground(shape(YELLOW));presets[index].setTextColor(INK);presets[index].setSelected(true);}
- private void live(){engine.start(null);listen.setText(R.string.stop);record.setEnabled(true);record.setAlpha(1f);state.setText(R.string.live_route);}
- @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] grants){super.onRequestPermissionsResult(request,permissions,grants);if(request==1&&grants.length>0&&grants[0]==PackageManager.PERMISSION_GRANTED)live();else state.setText(R.string.mic_permission);}
- private void name(File file){
-  if(file==null||!file.exists())return;if(isDestroyed()||isFinishing()||!hasWindowFocus()){library();return;}
-  EditText input=new EditText(this);input.setSingleLine();input.setText(file.getName().replace(".wav",""));
-  new AlertDialog.Builder(this).setTitle(R.string.session_name).setView(input).setPositiveButton(R.string.save,(dialog,which)->{String label=input.getText().toString().trim().replaceAll("[^\\p{L}\\p{N} _-]","_");if(!label.isEmpty()){File target=new File(file.getParentFile(),label+".wav");if(!target.equals(file)&&(target.exists()||!file.renameTo(target)))Toast.makeText(this,R.string.name_unavailable,Toast.LENGTH_LONG).show();}library();}).setNegativeButton(R.string.keep_name,(dialog,which)->library()).setOnCancelListener(dialog->library()).show();
- }
- private void library(){
-  sessions.removeAllViews();File[] files=new File(getFilesDir(),"sessions").listFiles((dir,name)->name.endsWith(".wav"));
-  if(files==null||files.length==0){LinearLayout empty=card(sessions);empty.addView(text(s(R.string.empty),15,muted));return;}
-  Arrays.sort(files,(a,b)->Long.compare(b.lastModified(),a.lastModified()));
-  for(File file:files){if(recording!=null&&recording.equals(file))continue;LinearLayout row=card(sessions);row.addView(text(s(R.string.session_title,file.getName().replace(".wav",""),Math.max(0,(file.length()-44)/96000)),16,fg));LinearLayout actions=new LinearLayout(this);row.addView(actions);
-   button(s(R.string.play),actions,true).setOnClickListener(v->{if(engine.isRunning()){Toast.makeText(this,R.string.stop_first,Toast.LENGTH_LONG).show();return;}engine.start(file);listen.setText(R.string.stop);record.setEnabled(false);record.setAlpha(.45f);state.setText(s(R.string.playback,file.getName()));selectTab(0);});
-   button(s(R.string.export_wav),actions,false).setOnClickListener(v->{export=file;Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("audio/wav").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_TITLE,file.getName());try{startActivityForResult(intent,2);}catch(ActivityNotFoundException e){Toast.makeText(this,R.string.no_picker,Toast.LENGTH_LONG).show();}});
-  }
- }
- @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==2&&result==RESULT_OK&&data!=null&&data.getData()!=null&&export!=null){File source=export;Uri uri=data.getData();new Thread(()->{try(InputStream in=new FileInputStream(source);OutputStream out=getContentResolver().openOutputStream(uri)){if(out==null)throw new IOException();byte[] buffer=new byte[8192];int n;while((n=in.read(buffer))!=-1)out.write(buffer,0,n);ui.post(()->{if(!isDestroyed())Toast.makeText(this,R.string.export_done,Toast.LENGTH_SHORT).show();});}catch(IOException e){ui.post(()->{if(!isDestroyed())Toast.makeText(this,R.string.export_failed,Toast.LENGTH_LONG).show();});}}).start();}}
- @Override protected void onSaveInstanceState(Bundle out){super.onSaveInstanceState(out);out.putInt("tab",tab);}
+ private void adjust(int field,int delta,Runnable refresh){Dsp.Settings d=engine.settings;double low=d.lowHz,high=d.highHz,gain=d.gainDb;if(field==0)low=Math.max(10,Math.min(Math.min(500,high-20),low+delta));else if(field==1)high=Math.max(Math.max(100,low+20),Math.min(4000,high+delta));else gain=Math.max(-12,Math.min(24,gain+delta));engine.settings=new Dsp.Settings(low,high,gain,d.enabled,d.notch);refresh.run();}
+ private void enterValue(int field,Runnable refresh){Dsp.Settings d=engine.settings;int minimum=field==0?10:field==1?(int)Math.max(100,d.lowHz+20):-12,maximum=field==0?(int)Math.min(500,d.highHz-20):field==1?4000:24;EditText input=new EditText(this);input.setSingleLine();input.setInputType(InputType.TYPE_CLASS_NUMBER|(field==2?InputType.TYPE_NUMBER_FLAG_SIGNED:0));input.setText(String.valueOf((int)(field==0?d.lowHz:field==1?d.highHz:d.gainDb)));AlertDialog dialog=new AlertDialog.Builder(this).setTitle(s(R.string.value_title,s(field==0?R.string.high_pass_short:field==1?R.string.low_pass_short:R.string.gain_short))).setView(input).setNegativeButton(R.string.cancel,null).setPositiveButton(R.string.save,null).create();dialog.setOnShowListener(v->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(w->{try{int value=Integer.parseInt(input.getText().toString());if(value<minimum||value>maximum)throw new NumberFormatException();Dsp.Settings old=engine.settings;engine.settings=new Dsp.Settings(field==0?value:old.lowHz,field==1?value:old.highHz,field==2?value:old.gainDb,old.enabled,old.notch);refresh.run();dialog.dismiss();}catch(NumberFormatException e){input.setError(s(R.string.value_invalid,minimum,maximum));}}));dialog.show();}
+ private LinearLayout settingRow(LinearLayout panel,String label){LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);panel.addView(row);TextView title=text(label,14,fg);row.addView(title,new LinearLayout.LayoutParams(0,-2,1));return row;}
+ private void stepper(LinearLayout panel,int label,TextView[] values,int index,Runnable minus,Runnable plus,Runnable edit){LinearLayout row=settingRow(panel,s(label));button("−",row,false).setOnClickListener(v->minus.run());Button value=button("",row,false);values[index]=value;value.setMinWidth(dp(86));value.setContentDescription(s(label));value.setOnClickListener(v->edit.run());button("+",row,false).setOnClickListener(v->plus.run());}
+ private void terms(){TextView value=text(s(R.string.scope_explanation)+"\n\n"+s(R.string.terms_body),15,fg);value.setTextIsSelectable(true);value.setPadding(dp(20),dp(8),dp(20),dp(8));ScrollView scroll=new ScrollView(this);scroll.addView(value);new AlertDialog.Builder(this).setTitle(R.string.terms_title).setView(scroll).setPositiveButton(R.string.close,null).show();}
+ private void saveRecording(File file){if(file==null||!file.exists())return;if(isDestroyed()||isFinishing()||!hasWindowFocus()){library();return;}LinearLayout panel=column();panel.setPadding(dp(20),0,dp(20),0);panel.addView(text(s(R.string.duration,time(Math.max(0,(file.length()-44)/96000))),13,muted));panel.addView(text(s(R.string.session_name),14,fg));EditText name=new EditText(this);name.setSingleLine();name.setText(file.getName().replace(".wav",""));panel.addView(name);panel.addView(text(s(R.string.raw_saved),12,muted));new AlertDialog.Builder(this).setTitle(R.string.save_recording).setView(panel).setPositiveButton(R.string.save,(d,w)->{rename(file,name.getText().toString());library();}).setNeutralButton(R.string.keep_name,(d,w)->library()).setNegativeButton(R.string.discard,(d,w)->new AlertDialog.Builder(this).setMessage(R.string.discard_question).setNegativeButton(R.string.cancel,(a,b)->library()).setPositiveButton(R.string.discard,(a,b)->{if(!file.delete())Toast.makeText(this,R.string.export_failed,Toast.LENGTH_SHORT).show();library();}).show()).setOnCancelListener(d->library()).show();}
+ private void rename(File file,String value){String label=value.trim().replaceAll("[^\\p{L}\\p{N} _-]","_");if(label.isEmpty())return;File target=new File(file.getParentFile(),label+".wav");if(!target.equals(file)&&(target.exists()||!file.renameTo(target)))Toast.makeText(this,R.string.name_unavailable,Toast.LENGTH_LONG).show();}
+ private void library(){sessions.removeAllViews();File[] files=new File(getFilesDir(),"sessions").listFiles((dir,name)->name.endsWith(".wav"));if(files==null||files.length==0){sessions.addView(text(s(R.string.empty),15,muted));return;}Arrays.sort(files,(a,b)->Long.compare(b.lastModified(),a.lastModified()));for(File file:files){if(recording!=null&&file.equals(recording))continue;LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(12),dp(4),dp(12),dp(4));row.setBackground(shape(surface));LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.bottomMargin=dp(8);sessions.addView(row,params);LinearLayout labels=column();labels.addView(text(file.getName().replace(".wav",""),15,fg));labels.addView(text(time(Math.max(0,(file.length()-44)/96000)),12,muted));row.addView(labels,new LinearLayout.LayoutParams(0,-2,1));MiniWave mini=new MiniWave(this);row.addView(mini,new LinearLayout.LayoutParams(dp(120),dp(40)));loadPreview(file,mini);button(s(R.string.play),row,true).setOnClickListener(v->{if(engine.isRunning()){Toast.makeText(this,R.string.stop_first,Toast.LENGTH_LONG).show();return;}start(file);});button(s(R.string.export_wav),row,false).setOnClickListener(v->export(file));Button more=button("⋮",row,false);more.setContentDescription(s(R.string.more_actions,file.getName()));more.setOnClickListener(v->{PopupMenu menu=new PopupMenu(this,more);menu.getMenu().add(R.string.rename).setOnMenuItemClickListener(item->{EditText input=new EditText(this);input.setSingleLine();input.setText(file.getName().replace(".wav",""));new AlertDialog.Builder(this).setTitle(R.string.rename).setView(input).setPositiveButton(R.string.save,(a,b)->{rename(file,input.getText().toString());library();}).setNegativeButton(R.string.cancel,null).show();return true;});menu.getMenu().add(R.string.delete).setOnMenuItemClickListener(item->{new AlertDialog.Builder(this).setMessage(R.string.delete_question).setNegativeButton(R.string.cancel,null).setPositiveButton(R.string.delete,(a,b)->{file.delete();library();}).show();return true;});menu.show();});}}
+ private void loadPreview(File file,MiniWave view){previews.execute(()->{float[] values=new float[80];try(RandomAccessFile in=new RandomAccessFile(file,"r")){long samples=Math.max(0,(in.length()-44)/2);for(int i=0;i<values.length;i++){if(Thread.currentThread().isInterrupted())return;long offset=samples*i/values.length;in.seek(44+offset*2);int peak=0;for(int j=0;j<48&&offset+j<samples;j++){int lo=in.read(),hi=in.read();if(lo<0||hi<0)break;peak=Math.max(peak,Math.abs((int)(short)(lo|(hi<<8))));}values[i]=peak;}}catch(IOException ignored){}ui.post(()->{if(!isDestroyed()){view.values=values;view.invalidate();}});});}
+ private void export(File file){export=file;Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("audio/wav").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_TITLE,file.getName());try{startActivityForResult(intent,2);}catch(ActivityNotFoundException e){Toast.makeText(this,R.string.no_picker,Toast.LENGTH_LONG).show();}}
+ @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==2&&result==RESULT_OK&&data!=null&&data.getData()!=null&&export!=null){File source=export;Uri uri=data.getData();new Thread(()->{try(InputStream in=new FileInputStream(source);OutputStream out=getContentResolver().openOutputStream(uri)){if(out==null)throw new IOException();byte[] buf=new byte[8192];int n;while((n=in.read(buf))!=-1)out.write(buf,0,n);ui.post(()->Toast.makeText(this,R.string.export_done,Toast.LENGTH_SHORT).show());}catch(IOException e){ui.post(()->Toast.makeText(this,R.string.export_failed,Toast.LENGTH_LONG).show());}}).start();}}
+ @Override public void onRequestPermissionsResult(int request,String[] permissions,int[] grants){super.onRequestPermissionsResult(request,permissions,grants);if(request==1&&grants.length>0&&grants[0]==PackageManager.PERMISSION_GRANTED)start(null);else state.setText(R.string.mic_permission);}
  @Override protected void onPause(){super.onPause();engine.stop();}
- @Override protected void onDestroy(){engine.stop();ui.removeCallbacksAndMessages(null);((AudioManager)getSystemService(AUDIO_SERVICE)).unregisterAudioDeviceCallback(devices);super.onDestroy();}
+ @Override protected void onDestroy(){engine.stop();ui.removeCallbacksAndMessages(null);previews.shutdownNow();((AudioManager)getSystemService(AUDIO_SERVICE)).unregisterAudioDeviceCallback(devices);super.onDestroy();}
+ private String time(long seconds){return String.format(Locale.ROOT,"%02d:%02d",seconds/60,seconds%60);}
  private int dp(int value){return(int)(value*getResources().getDisplayMetrics().density+.5f);}
- private LinearLayout column(){LinearLayout layout=new LinearLayout(this);layout.setOrientation(LinearLayout.VERTICAL);return layout;}
- private GradientDrawable shape(int color){GradientDrawable shape=new GradientDrawable();shape.setColor(color);shape.setCornerRadius(dp(18));return shape;}
- private TextView text(String value,int size,int color){TextView view=new TextView(this);view.setText(value);view.setTextSize(size);view.setTextColor(color);view.setPadding(0,dp(5),0,dp(5));return view;}
- private LinearLayout card(LinearLayout parent){LinearLayout card=column();card.setPadding(dp(20),dp(16),dp(20),dp(16));card.setBackground(shape(surface));LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.bottomMargin=dp(14);parent.addView(card,params);return card;}
- private Button button(String label,LinearLayout parent,boolean primary){Button button=new Button(this);button.setText(label);button.setTextSize(15);button.setAllCaps(false);button.setTextColor(primary?INK:fg);button.setBackground(shape(primary?YELLOW:line));button.setBackgroundTintList(null);button.setMinHeight(dp(48));button.setPadding(dp(8),dp(8),dp(8),dp(8));boolean horizontal=parent.getOrientation()==LinearLayout.HORIZONTAL;LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(horizontal?0:-1,-2,horizontal?1:0);params.setMargins(horizontal?dp(3):0,dp(10),horizontal?dp(3):0,0);parent.addView(button,params);return button;}
- private class Wave extends View{
-  private short[] data=new short[0];private final Path trace=new Path();private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
-  Wave(Context context){super(context);setContentDescription(s(R.string.wave_description));}
-  void update(short[] samples){data=samples;invalidate();}
-  @Override protected void onDraw(Canvas canvas){super.onDraw(canvas);paint.setColor(line);paint.setStrokeWidth(dp(1));canvas.drawLine(0,getHeight()/2f,getWidth(),getHeight()/2f,paint);if(data.length<2)return;trace.reset();for(int i=0;i<data.length;i++){float x=i*getWidth()/(float)(data.length-1),y=getHeight()/2f-data[i]/32768f*getHeight()*.45f;if(i==0)trace.moveTo(x,y);else trace.lineTo(x,y);}paint.setStyle(Paint.Style.STROKE);paint.setColor(accent);paint.setStrokeWidth(dp(2));canvas.drawPath(trace,paint);paint.setStyle(Paint.Style.FILL);}
- }
+ private LinearLayout column(){LinearLayout view=new LinearLayout(this);view.setOrientation(LinearLayout.VERTICAL);return view;}
+ private TextView text(String value,int size,int color){TextView view=new TextView(this);view.setText(value);view.setTextSize(size);view.setTextColor(color);view.setPadding(0,dp(3),0,dp(3));return view;}
+ private GradientDrawable shape(int color){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(18));return d;}
+ private Button button(String label,LinearLayout parent,boolean primary){Button b=new Button(this);b.setText(label);b.setTextSize(13);b.setAllCaps(false);b.setMinWidth(dp(44));b.setMinimumWidth(dp(44));b.setMinHeight(dp(44));b.setPadding(dp(10),0,dp(10),0);b.setTextColor(primary?INK:fg);b.setBackgroundTintList(null);b.setBackground(shape(primary?YELLOW:line));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(parent.getOrientation()==LinearLayout.VERTICAL?-1:-2,dp(44));p.setMargins(dp(3),dp(3),dp(3),dp(3));parent.addView(b,p);return b;}
+ private Button choice(String label,LinearLayout parent,boolean active){Button b=button(label,parent,active);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(40),1);p.setMargins(dp(2),dp(2),dp(2),dp(2));b.setLayoutParams(p);return b;}
+ private void selected(Button b,boolean active){b.setBackground(shape(active?YELLOW:line));b.setTextColor(active?INK:fg);b.setSelected(active);}
+ private void icon(LinearLayout parent,int resource,int description,Runnable action){ImageButton b=new ImageButton(this);b.setImageResource(resource);b.setColorFilter(fg);b.setBackgroundColor(Color.TRANSPARENT);b.setContentDescription(s(description));b.setOnClickListener(v->action.run());parent.addView(b,new LinearLayout.LayoutParams(dp(44),dp(44)));}
+ private class MiniWave extends View{float[] values;final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);MiniWave(Context context){super(context);setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);}@Override protected void onDraw(Canvas c){if(values==null)return;float max=1;for(float value:values)max=Math.max(max,value);paint.setColor(fg);paint.setStrokeWidth(Math.max(1,getResources().getDisplayMetrics().density));for(int i=0;i<values.length;i++){float x=i*getWidth()/(float)values.length,h=values[i]/max*getHeight()*.45f;c.drawLine(x,getHeight()/2f-h,x,getHeight()/2f+h,paint);}}}
 }

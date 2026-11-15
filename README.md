@@ -1,4 +1,4 @@
-# AcCorps Android — prototype 0.3.0
+# AcCorps Android — prototype 0.4.0
 
 Application Android native Java, Android 8+ : écoute externe en direct, gain manuel, filtres Cœur / Poumons / Brut, forme d’onde, enregistrements WAV PCM mono 48 kHz 16 bits, réécoute avec réglages et export par le sélecteur Android. Aucune permission Internet, fichiers privés, sauvegarde système désactivée.
 
@@ -21,3 +21,10 @@ Latence réelle non mesurée ; le mode faible latence est une demande au systèm
 ## Références Android
 https://developer.android.com/reference/android/media/AudioRecord
 https://developer.android.com/reference/android/media/AudioTrack
+
+## Essential 0.4.0
+Scope en paysage (sensorLandscape), entête compact et historique audio glissant. Tous les blocs audio alimentent un tampon min/max à 1 ms : le rafraîchissement de l’écran ne supprime aucun bloc du tracé. Fenêtres 10 s / 5 s / 2,5 s pour les vitesses 0,5× / 1× / 2×, sans changer l’audio. Affichage d’amplitude à échelle automatique. « Pause scope » fige uniquement le tracé ; le son et l’enregistrement continuent. « Stop » termine la session audio.
+
+Réglages centralisés dans l’engrenage : boutons de vitesse, profils, pas numériques ± et saisie directe, activation des filtres, réjecteur 50 Hz, gain et réinitialisation. Aucune SeekBar ni contrôle de plage. Réglages mémorisés sur le téléphone. Liste des WAV avec aperçus réels sous-échantillonnés, lecture, export, renommage et suppression avec confirmation. Nommage à la fin de l’enregistrement, avec conservation ou abandon confirmé.
+
+Validation automatisée : DSP/WAV et ScopeHistory (continuité, chronologie après bouclage, conservation des extrema entre blocs, durée et fenêtres de vitesse), compilation et lint. La lisibilité effective sur appareil, la latence et les conditions acoustiques restent à tester sur le téléphone.
