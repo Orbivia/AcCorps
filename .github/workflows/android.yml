@@ -25,6 +25,9 @@ jobs:
           javac -d /tmp/audio-test app/src/main/java/fr/orbivia/accorps/Dsp.java app/src/main/java/fr/orbivia/accorps/Wav.java tests/AudioCoreTest.java
           java -cp /tmp/audio-test AudioCoreTest
       - run: gradle :app:assembleDebug :app:lintDebug --no-daemon
+      - name: Show lint report on failure
+        if: failure()
+        run: cat app/build/reports/lint-results-debug.txt || true
       - uses: actions/upload-artifact@v4
         with:
           name: AcCorps-0.1.0-debug

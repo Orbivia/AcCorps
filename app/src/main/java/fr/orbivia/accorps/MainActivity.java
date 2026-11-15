@@ -36,7 +36,7 @@ public final class MainActivity extends Activity {
   getWindow().setStatusBarColor(paper); getWindow().setNavigationBarColor(paper);
   getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
   ScrollView scroll=new ScrollView(this); scroll.setFillViewport(true); scroll.setBackgroundColor(paper);
-  page=new LinearLayout(this); page.setOrientation(1); page.setPadding(dp(24),dp(24),dp(24),dp(20)); scroll.addView(page); setContentView(scroll);
+  page=new LinearLayout(this); page.setOrientation(LinearLayout.VERTICAL); page.setPadding(dp(24),dp(24),dp(24),dp(20)); scroll.addView(page); setContentView(scroll);
   scroll.setOnApplyWindowInsetsListener((v,insets)->{ v.setPadding(0,insets.getSystemWindowInsetTop(),0,insets.getSystemWindowInsetBottom()); return insets.consumeSystemWindowInsets(); });
   text("AcCorps",32,ink); text("Écouter les sons du corps",15,teal);
   space(24); state=text("Branchez vos écouteurs avec microphone",14,teal);
@@ -61,7 +61,7 @@ public final class MainActivity extends Activity {
    } catch(IOException e) { state.setText(e.getMessage()); }
   });
   space(24); text("Mes enregistrements",22,ink); text("Son brut conservé • Réglages modifiables à la réécoute",12,teal);
-  sessions=new LinearLayout(this); sessions.setOrientation(1); page.addView(sessions); library();
+  sessions=new LinearLayout(this); sessions.setOrientation(LinearLayout.VERTICAL); page.addView(sessions); library();
   space(20); text("Prototype d’écoute et d’enregistrement. Aucun diagnostic automatique.",12,ink);
   ((AudioManager)getSystemService(AUDIO_SERVICE)).registerAudioDeviceCallback(devices,ui); ui.post(tick);
  }
@@ -78,7 +78,7 @@ public final class MainActivity extends Activity {
   Arrays.sort(files,(a,b)->Long.compare(b.lastModified(),a.lastModified()));
   for(File f:files) {
    if(recording!=null && recording.equals(f)) continue;
-   LinearLayout row=new LinearLayout(this); row.setOrientation(1); row.setPadding(0,dp(12),0,dp(12)); sessions.addView(row);
+   LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.VERTICAL); row.setPadding(0,dp(12),0,dp(12)); sessions.addView(row);
    TextView title=new TextView(this); title.setText(f.getName().replace(".wav","")+"  ·  "+Math.max(0,(f.length()-44)/96000)+" s"); title.setTextColor(ink); title.setTextSize(16); row.addView(title);
    LinearLayout actions=new LinearLayout(this); row.addView(actions);
    button("Écouter",actions).setOnClickListener(v->{ if(engine.isRunning()) { state.setText("Arrêtez l’écoute en cours avant de relire une session"); return; } engine.start(f); listen.setText("Arrêter la lecture"); record.setEnabled(false); state.setText("Réécoute · "+f.getName()); });
@@ -99,7 +99,7 @@ public final class MainActivity extends Activity {
  private GradientDrawable round(int color){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(20));return d;}
  private Button button(String label,LinearLayout parent){Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextColor(ink);b.setTextSize(14);b.setMinHeight(dp(52));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(parent.getOrientation()==0?0:-1,-2,parent.getOrientation()==0?1:0);p.setMargins(dp(2),dp(3),dp(2),dp(3));parent.addView(b,p);return b;}
  private class Wave extends View {
-  private short[] data=new short[0]; private final Paint paint=new Paint(3);
+  private short[] data=new short[0]; private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
   Wave(Context c){super(c);setContentDescription("Forme d’onde audio filtrée");}
   void update(short[] d){data=d;invalidate();}
   protected void onDraw(Canvas c){super.onDraw(c);paint.setColor(Color.rgb(220,230,224));paint.setStrokeWidth(dp(1));c.drawLine(0,getHeight()/2f,getWidth(),getHeight()/2f,paint);if(data.length<2)return;paint.setColor(teal);paint.setStrokeWidth(dp(2));Path p=new Path();for(int i=0;i<data.length;i++){float x=i*getWidth()/(float)(data.length-1),y=getHeight()/2f-data[i]/32768f*getHeight()*.45f;if(i==0)p.moveTo(x,y);else p.lineTo(x,y);}paint.setStyle(Paint.Style.STROKE);c.drawPath(p,paint);paint.setStyle(Paint.Style.FILL);}
