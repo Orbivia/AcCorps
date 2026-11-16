@@ -15,6 +15,7 @@ public final class AudioEngine {
  private volatile long processedFrames;
  public long processedFrames(){return processedFrames;}
  public volatile Dsp.Settings settings = new Dsp.Settings(25,400,0,true,false);
+ public volatile AudioChannels.Mode outputMode = AudioChannels.Mode.LEFT;
  private volatile AudioTrack output;
  public AudioEngine(Context c, Listener l) { context=c.getApplicationContext(); manager=(AudioManager)c.getSystemService(Context.AUDIO_SERVICE); listener=l; }
  private boolean wired(AudioDeviceInfo d) { return d.getType()==AudioDeviceInfo.TYPE_WIRED_HEADSET || d.getType()==AudioDeviceInfo.TYPE_USB_HEADSET; }
@@ -38,12 +39,12 @@ public final class AudioEngine {
    Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO);
    AudioDeviceInfo sink=outputDevice(), source=inputDevice();
    if(sink==null || (playback==null && source==null)) throw new IOException(context.getString(R.string.err_headset));
-   int minOut=AudioTrack.getMinBufferSize(48000,AudioFormat.CHANNEL_OUT_MONO,AudioFormat.ENCODING_PCM_16BIT);
+   int minOut=AudioTrack.getMinBufferSize(48000,AudioFormat.CHANNEL_OUT_STEREO,AudioFormat.ENCODING_PCM_16BIT);
    int minIn=AudioRecord.getMinBufferSize(48000,AudioFormat.CHANNEL_IN_MONO,AudioFormat.ENCODING_PCM_16BIT);
    if(minOut<0 || minIn<0) throw new IOException(context.getString(R.string.err_format));
    track=new AudioTrack.Builder().setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
-    .setAudioFormat(new AudioFormat.Builder().setSampleRate(48000).setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
-    .setBufferSizeInBytes(Math.max(minOut,1920)).setTransferMode(AudioTrack.MODE_STREAM).setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY).build();
+    .setAudioFormat(new AudioFormat.Builder().setSampleRate(48000).setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_OUT_STEREO).build())
+    .setBufferSizeInBytes(Math.max(minOut,3840)).setTransferMode(AudioTrack.MODE_STREAM).setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY).build();
    if(!track.setPreferredDevice(sink)) throw new IOException(context.getString(R.string.err_output));
    output=track;
    if(playback==null) {
@@ -51,7 +52,7 @@ public final class AudioEngine {
     if(mic.getState()!=AudioRecord.STATE_INITIALIZED || !mic.setPreferredDevice(source)) throw new IOException(context.getString(R.string.err_mic));
     mic.startRecording();
    } else { file=new RandomAccessFile(playback,"r"); file.seek(44); }
-   Dsp dsp=new Dsp(); short[] raw=new short[480], processed=new short[480]; byte[] bytes=new byte[960];
+   Dsp dsp=new Dsp(); short[] raw=new short[480], processed=new short[480], stereo=new short[960]; byte[] bytes=new byte[960];
    track.play();
    while(running) {
     int n;
@@ -63,7 +64,9 @@ public final class AudioEngine {
     if(mic!=null && mic.getRoutedDevice()!=null && mic.getRoutedDevice().getId()!=source.getId()) throw new IOException(context.getString(R.string.err_source));
     synchronized(this) { if(wav!=null) wav.write(raw,n); }
     dsp.process(raw,processed,n,settings);
-    int offset=0; while(offset<n && running) { int written=track.write(processed,offset,n-offset,AudioTrack.WRITE_BLOCKING); if(written<0) throw new IOException(context.getString(R.string.err_write)); offset+=written; }
+    AudioChannels.route(processed,stereo,n,outputMode);
+    int samples=2*n;
+    int offset=0; while(offset<samples && running) { int written=track.write(stereo,offset,samples-offset,AudioTrack.WRITE_BLOCKING); if(written<=0) throw new IOException(context.getString(R.string.err_write)); offset+=written; }
     processedFrames+=n;
     listener.block(processed,n);
    }
