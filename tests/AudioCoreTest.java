@@ -12,6 +12,14 @@ public class AudioCoreTest {
   require(response(0,100)>response(0,4000)*5,"Heart rejects high frequencies");
   require(response(1,600)>response(1,10)*4,"Lungs rejects near DC");
   Dsp d=new Dsp();short[] in=new short[10000],out=new short[10000];java.util.Arrays.fill(in,Short.MAX_VALUE);d.process(in,out,in.length,2,24);for(short x:out)require(Math.abs((int)x)<=24000,"Output bound");
+  short[] original={100,-200,32767};short[] stereo=new short[6];
+  AudioChannels.route(original,stereo,3,AudioChannels.Mode.LEFT);
+  require(java.util.Arrays.equals(stereo,new short[]{100,0,-200,0,32767,0}),"Left output only");
+  AudioChannels.route(original,stereo,3,AudioChannels.Mode.RIGHT);
+  require(java.util.Arrays.equals(stereo,new short[]{0,100,0,-200,0,32767}),"Right output only");
+  AudioChannels.route(original,stereo,3,AudioChannels.Mode.STEREO);
+  require(java.util.Arrays.equals(stereo,new short[]{100,100,-200,-200,32767,32767}),"Stereo both channels");
+  require(java.util.Arrays.equals(original,new short[]{100,-200,32767}),"Source mono unchanged");
   File f=File.createTempFile("accorps-test",".wav");try(Wav w=new Wav(f)){w.write(new short[]{-32768,0,32767},3);}try(RandomAccessFile r=new RandomAccessFile(f,"r")){require(r.length()==50,"WAV length");require(r.readInt()==0x52494646,"RIFF");r.seek(40);require(r.readUnsignedByte()==6,"Data size");r.seek(44);require(r.readUnsignedByte()==0&&r.readUnsignedByte()==128,"PCM little endian");}f.delete();System.out.println("Audio core: all checks passed");
  }
 }
