@@ -3,14 +3,15 @@ package fr.orbivia.accorps;
 /** Streaming second-order Butterworth band filtering with smoothed parameter changes. */
 public final class Dsp {
  public static final double SAMPLE_RATE=48000.0;
- public static final double HEART_LOW_HZ=20, HEART_HIGH_HZ=400;
- public static final double LUNGS_LOW_HZ=100, LUNGS_HIGH_HZ=2000;
+ public static final double HEART_LOW_HZ=20, HEART_HIGH_HZ=600;
+ public static final double LUNGS_LOW_HZ=80, LUNGS_HIGH_HZ=3000;
  public static final class Settings {
   public final double lowHz,highHz,gainDb;
-  public final boolean enabled,notch;
-  public Settings(double low,double high,double gain,boolean enabled,boolean notch) {
+  public final boolean enabled,notch,focused;
+  public Settings(double low,double high,double gain,boolean enabled,boolean notch){this(low,high,gain,enabled,notch,false);}
+  public Settings(double low,double high,double gain,boolean enabled,boolean notch,boolean focused) {
    lowHz=clamp(low,10,500); highHz=clamp(high,lowHz+20,4000);
-   gainDb=clamp(gain,-12,24);this.enabled=enabled;this.notch=notch;
+   gainDb=clamp(gain,-12,36);this.enabled=enabled;this.notch=notch;this.focused=focused;
   }
   private static double clamp(double x,double min,double max){return Double.isFinite(x)?Math.max(min,Math.min(max,x)):min;}
  }
@@ -18,6 +19,7 @@ public final class Dsp {
  private static final double Q=1.0/Math.sqrt(2.0);
  private final Biquad highPass=new Biquad(),lowPass=new Biquad();
  private double gain=1,wet=1,notchWet,ramp;
+ private double firstPrevious,firstHp,firstLp,hpAlpha,lpAlpha,focusedMix;
  private boolean initialized;
  private double x1,x2,y1,y2;
  private final double omega=2*Math.PI*50/SAMPLE_RATE, alpha=Math.sin(omega)/40;
@@ -46,19 +48,31 @@ public final class Dsp {
  public void process(short[] in,short[] out,int count,Settings settings){
   if(in==null||out==null||settings==null||count<0||count>in.length||count>out.length)throw new IllegalArgumentException("Invalid audio buffer");
   highPass.configure(true,settings.lowHz);lowPass.configure(false,settings.highHz);
+  double targetHp=Math.exp(-2*Math.PI*settings.lowHz/SAMPLE_RATE),targetLp=1-Math.exp(-2*Math.PI*settings.highHz/SAMPLE_RATE);
   double targetGain=Math.pow(10,settings.gainDb/20);
   double targetWet=settings.enabled?1:0,targetNotch=settings.enabled&&settings.notch?1:0;
-  if(!initialized){gain=targetGain;wet=targetWet;notchWet=targetNotch;initialized=true;}
+  if(!initialized){gain=targetGain;wet=targetWet;notchWet=targetNotch;hpAlpha=targetHp;lpAlpha=targetLp;focusedMix=settings.focused?1:0;initialized=true;}
   for(int i=0;i<count;i++){
    gain+=SMOOTH*(targetGain-gain);wet+=SMOOTH*(targetWet-wet);
    notchWet+=SMOOTH*(targetNotch-notchWet);
-   double x=in[i]/32768.0,band=lowPass.next(highPass.next(x));
+   hpAlpha+=SMOOTH*(targetHp-hpAlpha);lpAlpha+=SMOOTH*(targetLp-lpAlpha);
+   focusedMix+=SMOOTH*((settings.focused?1:0)-focusedMix);
+   double x=in[i]/32768.0;
+   firstHp=hpAlpha*(firstHp+x-firstPrevious);firstPrevious=x;firstLp+=lpAlpha*(firstHp-firstLp);
+   double steepBand=lowPass.next(highPass.next(x));
+   double band=firstLp+focusedMix*(steepBand-firstLp);
    double mixed=x+wet*(band-x);
    double rejected=nb0*mixed+nb1*x1+nb2*x2-na1*y1-na2*y2;
    x2=x1;x1=mixed;y2=y1;y1=rejected;
    double filtered=mixed+notchWet*(rejected-mixed);
    ramp=Math.min(1,ramp+1.0/4800);
-   out[i]=(short)(Math.tanh(filtered*gain*ramp)*24000);
+   out[i]=(short)Math.round(transparentLimit(filtered*gain*ramp)*32767.0);
   }
+ }
+ /** Linear below -1.7 dBFS, soft knee on stronger peaks; no permanent coloration. */
+ private static double transparentLimit(double x){
+  double magnitude=Math.abs(x);
+  if(magnitude<=0.82)return x;
+  return Math.copySign(0.82+0.16*(-Math.expm1(-(magnitude-0.82)/0.16)),x);
  }
 }

@@ -14,8 +14,9 @@ public final class AudioEngine {
  private Wav wav;
  private volatile long processedFrames;
  public long processedFrames(){return processedFrames;}
- public volatile Dsp.Settings settings = new Dsp.Settings(25,400,0,true,false);
+ public volatile Dsp.Settings settings = new Dsp.Settings(Dsp.HEART_LOW_HZ,Dsp.HEART_HIGH_HZ,0,true,false);
  public volatile AudioChannels.Mode outputMode = AudioChannels.Mode.LEFT;
+ public volatile boolean rawCapture=true;
  private volatile AudioTrack output;
  public AudioEngine(Context c, Listener l) { context=c.getApplicationContext(); manager=(AudioManager)c.getSystemService(Context.AUDIO_SERVICE); listener=l; }
  private boolean wired(AudioDeviceInfo d) { return d.getType()==AudioDeviceInfo.TYPE_WIRED_HEADSET || d.getType()==AudioDeviceInfo.TYPE_USB_HEADSET; }
@@ -48,7 +49,7 @@ public final class AudioEngine {
    if(!track.setPreferredDevice(sink)) throw new IOException(context.getString(R.string.err_output));
    output=track;
    if(playback==null) {
-    mic=new AudioRecord.Builder().setAudioSource(MediaRecorder.AudioSource.UNPROCESSED).setAudioFormat(new AudioFormat.Builder().setSampleRate(48000).setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_IN_MONO).build()).setBufferSizeInBytes(Math.max(minIn,3840)).build();
+    mic=new AudioRecord.Builder().setAudioSource(rawCapture?MediaRecorder.AudioSource.UNPROCESSED:MediaRecorder.AudioSource.MIC).setAudioFormat(new AudioFormat.Builder().setSampleRate(48000).setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_IN_MONO).build()).setBufferSizeInBytes(Math.max(minIn,3840)).build();
     if(mic.getState()!=AudioRecord.STATE_INITIALIZED || !mic.setPreferredDevice(source)) throw new IOException(context.getString(R.string.err_mic));
     mic.startRecording();
    } else { file=new RandomAccessFile(playback,"r"); file.seek(44); }
