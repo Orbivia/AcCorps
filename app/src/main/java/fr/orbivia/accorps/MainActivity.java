@@ -125,7 +125,7 @@ public final class MainActivity extends Activity {
   LinearLayout displayPanel=column(),audioPanel=column(),filtersPanel=column();
   panel.addView(displayPanel);panel.addView(audioPanel);panel.addView(filtersPanel);
   ScrollView scroller=new ScrollView(this);scroller.setVerticalScrollBarEnabled(false);scroller.addView(panel);
-  container.addView(scroller,new LinearLayout.LayoutParams(-1,0,1));
+  container.addView(scroller,new LinearLayout.LayoutParams(-1,Math.min(dp(460),getResources().getDisplayMetrics().heightPixels-dp(220))));
   Button[] sectionButtons=new Button[3];
   int[] sectionLabels={R.string.section_display,R.string.section_audio,R.string.section_filters};
   for(int i=0;i<3;i++){final int index=i;sectionButtons[i]=choice(s(sectionLabels[i]),tabs,i==0);sectionButtons[i].setOnClickListener(v->{
@@ -189,10 +189,10 @@ public final class MainActivity extends Activity {
   int[] bodies={R.string.terms_purpose_content,R.string.terms_listening_content,R.string.terms_operation_content,R.string.terms_privacy_content,R.string.terms_export_content,R.string.terms_contact_content};
   for(int i=0;i<headings.length;i++){final TextView body=text(s(bodies[i]),14,fg);
    body.setPadding(dp(8),dp(5),dp(5),dp(15));body.setVisibility(i==0?View.VISIBLE:View.GONE);body.setTextIsSelectable(true);
-   Button heading=button((i==0?"▾  ":"▸  ")+s(headings[i]),page,false);
+   final String headingTitle=s(headings[i]);Button heading=button((i==0?"▾  ":"▸  ")+headingTitle,page,false);
    heading.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
    heading.setOnClickListener(v->{boolean open=body.getVisibility()!=View.VISIBLE;body.setVisibility(open?View.VISIBLE:View.GONE);
-    heading.setText((open?"▾  ":"▸  ")+s(headings[i]));});page.addView(body);
+    heading.setText((open?"▾  ":"▸  ")+headingTitle);});page.addView(body);
   }
   ScrollView scroll=new ScrollView(this);scroll.setFillViewport(false);scroll.addView(page);
   AlertDialog dialog=new AlertDialog.Builder(this).setTitle(R.string.terms_title).setView(scroll).setPositiveButton(R.string.close,null).create();
