@@ -29,16 +29,15 @@ jobs:
       - name: Show lint report on failure
         if: failure()
         run: cat app/build/reports/lint-results-debug.txt || true
-      - name: Save private draft test APK
+      - name: Save test APK release in private repository
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view accorps-test-0.5.1 >/dev/null 2>&1; then
-            test "$(gh release view accorps-test-0.5.1 --json isDraft --jq .isDraft)" = true
-            gh release edit accorps-test-0.5.1 --draft --target "${{ github.sha }}" --title "AcCorps 0.5.1 — Android test"
+            gh release edit accorps-test-0.5.1 --draft=false --latest=false --target "${{ github.sha }}" --title "AcCorps 0.5.1 — Android test"
             gh release upload accorps-test-0.5.1 app/build/outputs/apk/debug/app-debug.apk --clobber
           else
-            gh release create accorps-test-0.5.1 app/build/outputs/apk/debug/app-debug.apk --draft --target "${{ github.sha }}" --title "AcCorps 0.5.1 — Android test" --notes "Transparent audio at normal levels, corrected gain up to +36 dB, natural/focused filtering, Raw bypass and optional Standard MIC capture for comparisons. Use low headphone volume."
+            gh release create accorps-test-0.5.1 app/build/outputs/apk/debug/app-debug.apk --draft=false --latest=false --target "${{ github.sha }}" --title "AcCorps 0.5.1 — Android test" --notes "Transparent audio at normal levels, corrected gain up to +36 dB, natural/focused filtering, Raw bypass and optional Standard MIC capture for comparisons. Use low headphone volume."
           fi
       - name: Prepare verified APK delivery
         run: |
