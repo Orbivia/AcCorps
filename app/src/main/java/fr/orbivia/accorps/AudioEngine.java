@@ -10,6 +10,7 @@ public final class AudioEngine {
  private final Context context;
  private final Listener listener;
  private volatile boolean running;
+ private volatile boolean captureReady;
  private Thread worker;
  private Wav wav;
  private volatile long processedFrames;
@@ -24,11 +25,11 @@ public final class AudioEngine {
  public AudioDeviceInfo outputDevice() { for(AudioDeviceInfo d:manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) if(wired(d) || d.getType()==AudioDeviceInfo.TYPE_WIRED_HEADPHONES) return d; return null; }
  public synchronized boolean isRunning() { return worker!=null; }
  public synchronized boolean isRecording() { return wav!=null; }
- public synchronized void record(File f) throws IOException { if(worker==null) throw new IOException(context.getString(R.string.err_start_record)); if(wav==null) wav=new Wav(f); }
+ public synchronized void record(File f) throws IOException { if(worker==null||!running||!captureReady) throw new IOException(context.getString(R.string.err_start_record)); if(wav==null) wav=new Wav(f); }
  public synchronized void finishRecord() throws IOException { if(wav!=null) { Wav w=wav; wav=null; w.close(); } }
  public synchronized void start(File playback) {
   if(worker!=null) return;
-  processedFrames=0;running=true; worker=new Thread(()->loop(playback),"AcCorps-audio"); worker.start();
+  processedFrames=0;captureReady=false;running=true; worker=new Thread(()->loop(playback),"AcCorps-audio"); worker.start();
  }
  public void stop() { running=false; AudioTrack t=output; if(t!=null) try { t.pause(); t.flush(); } catch(IllegalStateException ignored) {} }
  @android.annotation.SuppressLint("MissingPermission")
@@ -51,7 +52,7 @@ public final class AudioEngine {
    if(playback==null) {
     mic=new AudioRecord.Builder().setAudioSource(rawCapture?MediaRecorder.AudioSource.UNPROCESSED:MediaRecorder.AudioSource.MIC).setAudioFormat(new AudioFormat.Builder().setSampleRate(48000).setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_IN_MONO).build()).setBufferSizeInBytes(Math.max(minIn,3840)).build();
     if(mic.getState()!=AudioRecord.STATE_INITIALIZED || !mic.setPreferredDevice(source)) throw new IOException(context.getString(R.string.err_mic));
-    mic.startRecording();
+    mic.startRecording();captureReady=true;
    } else { file=new RandomAccessFile(playback,"r"); file.seek(44); }
    Dsp dsp=new Dsp(); short[] raw=new short[480], processed=new short[480], stereo=new short[960]; byte[] bytes=new byte[960];
    track.play();
@@ -81,7 +82,7 @@ public final class AudioEngine {
    if(track!=null) { try { track.stop(); } catch(Exception ignored) {} track.release(); }
    if(file!=null) try { file.close(); } catch(IOException ignored) {}
    try { finishRecord(); } catch(IOException e) { error=context.getString(R.string.err_save,e.getMessage()); }
-   synchronized(this) { running=false; worker=null; }
+   synchronized(this) { captureReady=false;running=false; worker=null; }
    listener.ended(error);
   }
  }
