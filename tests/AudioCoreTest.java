@@ -32,6 +32,17 @@ public class AudioCoreTest {
   AudioChannels.route(original,stereo,3,AudioChannels.Mode.STEREO);
   require(java.util.Arrays.equals(stereo,new short[]{100,100,-200,-200,32767,32767}),"Stereo both channels");
   require(java.util.Arrays.equals(original,new short[]{100,-200,32767}),"Source mono unchanged");
-  File f=File.createTempFile("accorps-test",".wav");try(Wav w=new Wav(f)){w.write(new short[]{-32768,0,32767},3);}try(RandomAccessFile r=new RandomAccessFile(f,"r")){require(r.length()==50,"WAV length");require(r.readInt()==0x52494646,"RIFF");r.seek(40);require(r.readUnsignedByte()==6,"Data size");r.seek(44);require(r.readUnsignedByte()==0&&r.readUnsignedByte()==128,"PCM little endian");}f.delete();System.out.println("Audio core: all checks passed");
+  File f=File.createTempFile("accorps-test",".wav");try(Wav w=new Wav(f)){w.write(new short[]{-32768,0,32767},3);}try(RandomAccessFile r=new RandomAccessFile(f,"r")){require(r.length()==50,"WAV length");require(r.readInt()==0x52494646,"RIFF");r.seek(40);require(r.readUnsignedByte()==6,"Data size");r.seek(44);require(r.readUnsignedByte()==0&&r.readUnsignedByte()==128,"PCM little endian");}require(Wav.dataBytes(f)==6,"Recorded WAV data length");
+  f.delete();
+  File empty=File.createTempFile("accorps-empty",".wav");
+  try(Wav zero=new Wav(empty)){}
+  require(empty.length()==44&&Wav.dataBytes(empty)==0,"Empty WAV is detectable");
+  try(Wav full=new Wav(empty)){full.write(new short[]{1,2,3,4},4);}
+  require(Wav.dataBytes(empty)==8,"Non-empty recording validated");
+  try(RandomAccessFile truncate=new RandomAccessFile(empty,"rw")){truncate.setLength(45);}
+  boolean rejected=false;try{Wav.dataBytes(empty);}catch(IOException expected){rejected=true;}
+  require(rejected,"Broken WAV must be rejected before export");
+  empty.delete();
+  System.out.println("Audio core: all checks passed");
  }
 }
