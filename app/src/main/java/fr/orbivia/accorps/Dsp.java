@@ -21,6 +21,7 @@ public final class Dsp {
  private double gain=1,wet=1,notchWet,ramp;
  private double firstPrevious,firstHp,firstLp,hpAlpha,lpAlpha,focusedMix;
  private boolean initialized;
+ public volatile double lastInputPeak,lastPreLimitPeak;
  private double x1,x2,y1,y2;
  private final double omega=2*Math.PI*50/SAMPLE_RATE, alpha=Math.sin(omega)/40;
  private final double nb0=1/(1+alpha),nb1=-2*Math.cos(omega)/(1+alpha),nb2=nb0,na1=nb1,na2=(1-alpha)/(1+alpha);
@@ -51,13 +52,14 @@ public final class Dsp {
   double targetHp=Math.exp(-2*Math.PI*settings.lowHz/SAMPLE_RATE),targetLp=1-Math.exp(-2*Math.PI*settings.highHz/SAMPLE_RATE);
   double targetGain=Math.pow(10,settings.gainDb/20);
   double targetWet=settings.enabled?1:0,targetNotch=settings.enabled&&settings.notch?1:0;
+  double inputMax=0,preLimitMax=0;
   if(!initialized){gain=targetGain;wet=targetWet;notchWet=targetNotch;hpAlpha=targetHp;lpAlpha=targetLp;focusedMix=settings.focused?1:0;initialized=true;}
   for(int i=0;i<count;i++){
    gain+=SMOOTH*(targetGain-gain);wet+=SMOOTH*(targetWet-wet);
    notchWet+=SMOOTH*(targetNotch-notchWet);
    hpAlpha+=SMOOTH*(targetHp-hpAlpha);lpAlpha+=SMOOTH*(targetLp-lpAlpha);
    focusedMix+=SMOOTH*((settings.focused?1:0)-focusedMix);
-   double x=in[i]/32768.0;
+   double x=in[i]/32768.0;inputMax=Math.max(inputMax,Math.abs(x));
    firstHp=hpAlpha*(firstHp+x-firstPrevious);firstPrevious=x;firstLp+=lpAlpha*(firstHp-firstLp);
    double steepBand=lowPass.next(highPass.next(x));
    double band=firstLp+focusedMix*(steepBand-firstLp);
@@ -66,8 +68,10 @@ public final class Dsp {
    x2=x1;x1=mixed;y2=y1;y1=rejected;
    double filtered=mixed+notchWet*(rejected-mixed);
    ramp=Math.min(1,ramp+1.0/4800);
-   out[i]=(short)Math.round(transparentLimit(filtered*gain*ramp)*32767.0);
+   double preLimit=filtered*gain*ramp;preLimitMax=Math.max(preLimitMax,Math.abs(preLimit));
+   out[i]=(short)Math.round(transparentLimit(preLimit)*32767.0);
   }
+  lastInputPeak=inputMax;lastPreLimitPeak=preLimitMax;
  }
  /** Linear below -1.7 dBFS, soft knee on stronger peaks; no permanent coloration. */
  private static double transparentLimit(double x){

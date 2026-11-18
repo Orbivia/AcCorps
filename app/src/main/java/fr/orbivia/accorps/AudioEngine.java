@@ -19,6 +19,10 @@ public final class AudioEngine {
  public volatile Dsp.Settings settings = new Dsp.Settings(Dsp.HEART_LOW_HZ,Dsp.HEART_HIGH_HZ,0,true,false);
  public volatile AudioChannels.Mode outputMode = AudioChannels.Mode.LEFT;
  public volatile boolean rawCapture=true;
+ /** Temporary listening comparison; never changes source recording or saved presets. */
+ public volatile boolean compareRaw=false;
+ public volatile float inputPeak=0,outputPeak=0;
+ public volatile boolean limiterActive=false;
  private volatile AudioTrack output;
  public AudioEngine(Context c, Listener l) { context=c.getApplicationContext(); manager=(AudioManager)c.getSystemService(Context.AUDIO_SERVICE); listener=l; }
  private boolean wired(AudioDeviceInfo d) { return d.getType()==AudioDeviceInfo.TYPE_WIRED_HEADSET || d.getType()==AudioDeviceInfo.TYPE_USB_HEADSET; }
@@ -31,7 +35,7 @@ public final class AudioEngine {
  public synchronized void finishRecord() throws IOException { if(wav!=null) { Wav w=wav; wav=null; w.close(); } }
  public synchronized void start(File playback) {
   if(worker!=null) return;
-  processedFrames=0;captureReady=false;liveListening=playback==null;running=true; worker=new Thread(()->loop(playback),"AcCorps-audio"); worker.start();
+  processedFrames=0;inputPeak=0;outputPeak=0;limiterActive=false;compareRaw=false;captureReady=false;liveListening=playback==null;running=true; worker=new Thread(()->loop(playback),"AcCorps-audio"); worker.start();
  }
  public void stop() { running=false; AudioTrack t=output; if(t!=null) try { t.pause(); t.flush(); } catch(IllegalStateException ignored) {} }
  @android.annotation.SuppressLint("MissingPermission")
@@ -71,7 +75,12 @@ public final class AudioEngine {
      if(mic.getRoutedDevice()!=null&&mic.getRoutedDevice().getId()!=source.getId())throw new IOException(context.getString(R.string.err_source));
     }
     synchronized(this) { if(wav!=null) wav.write(raw,n); }
-    dsp.process(raw,processed,n,settings);
+    Dsp.Settings current=settings;
+    if(compareRaw && current.enabled)current=new Dsp.Settings(current.lowHz,current.highHz,current.gainDb,false,current.notch,current.focused);
+    dsp.process(raw,processed,n,current);
+    inputPeak=(float)dsp.lastInputPeak;
+    outputPeak=(float)Math.min(1,dsp.lastPreLimitPeak);
+    limiterActive=dsp.lastPreLimitPeak>0.82;
     AudioChannels.Mode mode=outputMode;
     // Ensure mono phone speakers get a full-level stereo feed.
     if(!live&&routed!=null&&(routed.getType()==AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
@@ -92,6 +101,7 @@ public final class AudioEngine {
    if(track!=null) { try { track.stop(); } catch(Exception ignored) {} track.release(); }
    if(file!=null) try { file.close(); } catch(IOException ignored) {}
    try { finishRecord(); } catch(IOException e) { error=context.getString(R.string.err_save,e.getMessage()); }
+   inputPeak=0;outputPeak=0;limiterActive=false;compareRaw=false;
    synchronized(this) { captureReady=false;liveListening=false;running=false; worker=null; }
    listener.ended(error);
   }

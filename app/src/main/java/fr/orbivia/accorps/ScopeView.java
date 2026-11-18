@@ -12,6 +12,8 @@ public final class ScopeView extends View {
  private final float density;
  private int windowMillis=5000;
  private boolean envelopeMode=true;
+ /** Smoothed on-screen amplitude reference (not audio gain). */
+ private float envelopeReference=64,waveformReference=128;
  private ScopeHistory.Snapshot frozen;
  public ScopeView(Context c,ScopeHistory history,int ink,int grid,int accent){
   super(c);this.history=history;this.ink=ink;this.grid=grid;this.accent=accent;
@@ -53,7 +55,8 @@ public final class ScopeView extends View {
    float target=data.energy[i];level+=(target>level?attack:release)*(target-level);
    envelope[i]=level;max=Math.max(max,level);
   }
-  float scale=height*.40f/max;
+  envelopeReference=Math.max(max,envelopeReference*.985f);
+  float scale=height*.40f/envelopeReference;
   paint.setColor(ink);paint.setStrokeWidth(Math.max(1,density));
   for(int p=0;p<pixels;p++){
    int from=(int)((long)p*data.windowMillis/pixels)-padding;
@@ -68,7 +71,8 @@ public final class ScopeView extends View {
  private void drawWaveform(Canvas c,ScopeHistory.Snapshot data,int n,int padding,int pixels,float left,float mid,float height){
   float peak=32;
   for(int i=0;i<n;i++)peak=Math.max(peak,Math.max(Math.abs((int)data.lows[i]),Math.abs((int)data.highs[i])));
-  float scale=height*.43f/peak,lastY=mid;boolean connected=false;
+  waveformReference=Math.max(peak,waveformReference*.985f);
+  float scale=height*.43f/waveformReference,lastY=mid;boolean connected=false;
   paint.setStrokeWidth(Math.max(1,density));
   for(int p=0;p<pixels;p++){
    int from=(int)((long)p*data.windowMillis/pixels)-padding,to=(int)((long)(p+1)*data.windowMillis/pixels)-padding;
