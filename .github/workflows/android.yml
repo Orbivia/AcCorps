@@ -33,20 +33,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view accorps-test-0.5.4 >/dev/null 2>&1; then
-            gh release edit accorps-test-0.5.4 --draft=false --latest=false --target "${{ github.sha }}" --title "AcCorps 0.5.4 — Android test"
-            gh release upload accorps-test-0.5.4 app/build/outputs/apk/debug/app-debug.apk --clobber
+          if gh release view accorps-test-0.5.5 >/dev/null 2>&1; then
+            gh release edit accorps-test-0.5.5 --draft=false --latest=false --target "${{ github.sha }}" --title "AcCorps 0.5.5 — Android test"
+            gh release upload accorps-test-0.5.5 app/build/outputs/apk/debug/app-debug.apk --clobber
           else
-            gh release create accorps-test-0.5.4 app/build/outputs/apk/debug/app-debug.apk --draft=false --latest=false --target "${{ github.sha }}" --title "AcCorps 0.5.4 — Android test" --notes "Portrait-first layout with stacked live controls and readable recording cards; WAV playback without microphone and existing audio filtering retained."
+            gh release create accorps-test-0.5.5 app/build/outputs/apk/debug/app-debug.apk --draft=false --latest=false --target "${{ github.sha }}" --title "AcCorps 0.5.5 — Android test" --notes "Portrait-first layout with stacked live controls and readable recording cards; WAV playback without microphone and existing audio filtering retained."
           fi
-      - name: Prepare verified APK delivery
+      - name: Upload installable APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AcCorps-0.5.5-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+      - name: Verify APK checksum
         run: |
-          python3 - <<'PYAPK'
-          import pathlib,hashlib,base64
-          data=pathlib.Path('app/build/outputs/apk/debug/app-debug.apk').read_bytes()
-          print('APK_SIZE:'+str(len(data)))
-          print('APK_SHA256:'+hashlib.sha256(data).hexdigest())
-          encoded=base64.b64encode(data).decode()
-          for i,start in enumerate(range(0,len(encoded),8192)):
-              print(f'APK_CHUNK_{i:03d}:'+encoded[start:start+8192])
-          PYAPK
+          sha256sum app/build/outputs/apk/debug/app-debug.apk
+          ls -lh app/build/outputs/apk/debug/app-debug.apk

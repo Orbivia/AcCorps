@@ -1,4 +1,4 @@
-# AcCorps Android — prototype 0.5.4
+# AcCorps Android — prototype 0.5.5
 
 Application Android native Java, Android 8+ : écoute externe en direct, gain manuel, filtres Cœur / Poumons / Brut, forme d’onde, enregistrements WAV PCM mono 48 kHz 16 bits, réécoute avec réglages et export par le sélecteur Android. Aucune permission Internet, fichiers privés, sauvegarde système désactivée.
 
@@ -39,3 +39,6 @@ En mode Play, aucun microphone n'est nécessaire : la sortie utilise le routage 
 
 ## Interface portrait — 0.5.4
 Le mode portrait remplace le mode paysage imposé. Le scope reste la zone centrale et défile horizontalement. L'en-tête donne la priorité au titre et aux accès information/réglages, avec le statut sur sa propre ligne. Les commandes Listen, Record et Stop restent ensemble au bas du scope et la durée/Recordings occupent une seconde ligne. Les sessions enregistrées s'affichent en cartes verticales : titre, durée et aperçu au-dessus de Play/Export/More. Les réglages restent dans l'engrenage avec défilement vertical, sans sliders. Aucun changement de traitement audio ou des fichiers existants.
+
+## Icône AcCorps — 0.5.5
+Le lanceur utilise le logo spiralé/onde `AcCorps_logo.png` (fichier PNG identique à l'identité graphique, copié dans `app/src/main/res/drawable-nodpi/`). Icône adaptative sur fond blanc, image centrée avec marge de sécurité. Aucun changement au moteur audio, aux filtres ou au stockage des WAV.
