@@ -1,6 +1,19 @@
-# AcCorps Android — prototype 0.5.5
+# AcCorps Android — prototype 0.6.0
 
 Application Android native Java, Android 8+ : écoute externe en direct, gain manuel, filtres Cœur / Poumons / Brut, forme d’onde, enregistrements WAV PCM mono 48 kHz 16 bits, réécoute avec réglages et export par le sélecteur Android. Aucune permission Internet, fichiers privés, sauvegarde système désactivée.
+
+
+## 0.6.0 — Scope, ergonomie et comparaison audio
+- Affichage à échelle verticale progressive : la référence suit immédiatement les pics puis décroît progressivement pour limiter les changements brusques de taille. La graduation reste relative, non calibrée.
+- Tap sur le scope : alternance entre 1× et 4× (fenêtre de 5 s ou 1,25 s), sans modification des échantillons ni de la vitesse audio. Réglages supplémentaires 0,5× et 2×.
+- Réglages séparés en trois vues **Display / Audio / Filters** pour rester utilisables sur téléphone en portrait.
+- Comparaison A/B immédiate (filtré ↔ brut), temporaire et non enregistrée. Elle contourne les filtres fréquentiels mais conserve le gain et le limiteur ; surveiller le volume.
+- Indicateur d'amplitude d'entrée en dBFS et indication CLIP ou LIMIT fondées sur les pics des blocs audio (ces niveaux ne constituent pas un sonomètre calibré).
+- Presets exploratoires Heart low 20–160 Hz, Heart full 20–600 Hz, Lungs 80–3000 Hz, Raw et Custom. Ils ne prétendent pas représenter une validation clinique.
+- Icône AcCorps dans l'en-tête, bouton d'enregistrement rouge pendant la capture, date des sessions dans les cartes, écran vide plus explicite.
+- Conditions d'utilisation réparties en sections dépliables ; affichage dynamique de la version installée.
+- Les WAV mono 48 kHz PCM 16 bits restent strictement enregistrés **avant** les filtres, le gain et la comparaison A/B. Le traitement s'applique à l'écoute et lors de la lecture.
+- Validation : tests Java DSP/WAV et ScopeHistory, assembleDebug et lintDebug exécutés par GitHub Actions. La qualité acoustique, la latence, les routes USB/TRRS et l'ergonomie tactile restent à vérifier sur un appareil réel.
 
 ## Utilisation
 Brancher un casque filaire avec micro ou USB compatible. Autoriser le micro puis démarrer l’écoute. Commencer à faible volume. Enregistrer puis nommer la session à l’arrêt. Les WAV conservent le signal d’entrée avant les filtres de l’application. L’écoute s’arrête en quittant l’écran ou en cas de débranchement. La lecture utilise également les filtres et le gain choisis. Bluetooth exclu de cette première version. La sortie utilise un flux PCM stéréo 48 kHz : le menu Audio output permet Left only (par défaut, canal droit silencieux), Right only (canal gauche silencieux) ou Stereo (son dans les deux oreilles). Ce réglage prend effet pendant l’écoute et la relecture sans modifier les fichiers WAV mono originaux. Désactiver l’option d’accessibilité audio mono du téléphone pour conserver la séparation gauche/droite.
