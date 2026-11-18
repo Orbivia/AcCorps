@@ -35,7 +35,7 @@ public final class MainActivity extends Activity {
  private boolean envelopeDisplay=true;
  private final Handler ui=new Handler(Looper.getMainLooper());
  private final ExecutorService previews=Executors.newSingleThreadExecutor();
- private final AudioDeviceCallback devices=new AudioDeviceCallback(){@Override public void onAudioDevicesRemoved(AudioDeviceInfo[] removed){engine.stop();}};
+ private final AudioDeviceCallback devices=new AudioDeviceCallback(){@Override public void onAudioDevicesRemoved(AudioDeviceInfo[] removed){if(engine!=null&&engine.isLiveListening())engine.stop();}};
  private final Runnable tick=new Runnable(){public void run(){if(engine!=null&&engine.isRunning()){if(!scope.isPaused()&&!showingRecordings)scope.invalidate();long frames=engine.processedFrames()-(engine.isRecording()?recordingStartFrame:0);timer.setText(time(Math.max(0,frames/48000)));}ui.postDelayed(this,33);}};
  private String s(int id,Object...args){return getString(id,args);}
  @Override public void onCreate(Bundle savedState){

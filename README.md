@@ -1,4 +1,4 @@
-# AcCorps Android — prototype 0.5.0
+# AcCorps Android — prototype 0.5.3
 
 Application Android native Java, Android 8+ : écoute externe en direct, gain manuel, filtres Cœur / Poumons / Brut, forme d’onde, enregistrements WAV PCM mono 48 kHz 16 bits, réécoute avec réglages et export par le sélecteur Android. Aucune permission Internet, fichiers privés, sauvegarde système désactivée.
 
@@ -33,3 +33,6 @@ Validation automatisée : DSP/WAV et ScopeHistory (continuité, chronologie apr�
 Icône provisoire vectorielle jaune en spirale sur fond ardoise (adaptive icon), facilement remplaçable.
 Profils Cœur 20–400 Hz et Poumons 100–2000 Hz avec filtres passe-haut et passe-bas Butterworth du deuxième ordre (12 dB/octave chacun), paramètres lissés en direct. Gain manuel et limitation numérique douce ; ne pas activer le notch 50 Hz sans vérifier qu'il ne supprime pas de composantes cardiaques utiles.
 Affichage Envelope (par défaut, RMS par milliseconde avec attaque/relâchement) ou Waveform (oscillogramme filtré), tous deux à échelle relative automatique. Le tracé reste audio et non ECG. WAV mono conservé avant filtres et gain. Validation acoustique sur microphone, pavillon, câble et casque encore nécessaire ; application expérimentale sans usage diagnostic validé.
+
+## Lecture WAV sans microphone — 0.5.3
+En mode Play, aucun microphone n'est nécessaire : la sortie utilise le routage média Android (haut-parleur du téléphone ou casque connecté), et un débranchement de périphérique externe ne stoppe plus automatiquement la lecture. La sortie du haut-parleur intégré utilise les deux canaux, tandis que les casques respectent le choix Left only/Right only/Stereo. En mode Listen, le microphone externe et une sortie filaire restent exigés afin de limiter les risques de Larsen. Les WAV originaux ne changent pas.
