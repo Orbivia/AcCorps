@@ -1,4 +1,4 @@
-# AcCorps Android — prototype 0.5.3
+# AcCorps Android — prototype 0.5.4
 
 Application Android native Java, Android 8+ : écoute externe en direct, gain manuel, filtres Cœur / Poumons / Brut, forme d’onde, enregistrements WAV PCM mono 48 kHz 16 bits, réécoute avec réglages et export par le sélecteur Android. Aucune permission Internet, fichiers privés, sauvegarde système désactivée.
 
@@ -36,3 +36,6 @@ Affichage Envelope (par défaut, RMS par milliseconde avec attaque/relâchement)
 
 ## Lecture WAV sans microphone — 0.5.3
 En mode Play, aucun microphone n'est nécessaire : la sortie utilise le routage média Android (haut-parleur du téléphone ou casque connecté), et un débranchement de périphérique externe ne stoppe plus automatiquement la lecture. La sortie du haut-parleur intégré utilise les deux canaux, tandis que les casques respectent le choix Left only/Right only/Stereo. En mode Listen, le microphone externe et une sortie filaire restent exigés afin de limiter les risques de Larsen. Les WAV originaux ne changent pas.
+
+## Interface portrait — 0.5.4
+Le mode portrait remplace le mode paysage imposé. Le scope reste la zone centrale et défile horizontalement. L'en-tête donne la priorité au titre et aux accès information/réglages, avec le statut sur sa propre ligne. Les commandes Listen, Record et Stop restent ensemble au bas du scope et la durée/Recordings occupent une seconde ligne. Les sessions enregistrées s'affichent en cartes verticales : titre, durée et aperçu au-dessus de Play/Export/More. Les réglages restent dans l'engrenage avec défilement vertical, sans sliders. Aucun changement de traitement audio ou des fichiers existants.

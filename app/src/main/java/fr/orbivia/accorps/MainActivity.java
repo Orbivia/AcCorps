@@ -48,16 +48,26 @@ public final class MainActivity extends Activity {
   LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setPadding(dp(16),dp(2),dp(12),dp(2));
   back=button("‹",header,false);back.setContentDescription(s(R.string.back_scope));back.setOnClickListener(v->showRecordings(false));back.setVisibility(View.GONE);
   TextView brand=text(s(R.string.app_name),23,fg);brand.setTypeface(null,Typeface.BOLD);header.addView(brand);
-  state=text(s(R.string.connect),12,muted);state.setPadding(dp(18),0,dp(8),0);state.setMaxLines(2);state.setEllipsize(TextUtils.TruncateAt.END);header.addView(state,new LinearLayout.LayoutParams(0,-2,1));
-  stop=button(s(R.string.stop),header,false);stop.setOnClickListener(v->engine.stop());stop.setVisibility(View.GONE);
+  header.addView(new Space(this),new LinearLayout.LayoutParams(0,1,1));
   icon(header,android.R.drawable.ic_menu_info_details,R.string.terms_info,this::terms);icon(header,android.R.drawable.ic_menu_manage,R.string.settings_info,this::settings);
-  root.addView(header,new LinearLayout.LayoutParams(-1,dp(48)));
+  root.addView(header,new LinearLayout.LayoutParams(-1,dp(56)));
+  state=text(s(R.string.connect),12,muted);state.setPadding(dp(18),0,dp(18),dp(7));state.setMaxLines(2);
+  state.setEllipsize(TextUtils.TruncateAt.END);root.addView(state,new LinearLayout.LayoutParams(-1,dp(40)));
   FrameLayout content=new FrameLayout(this);root.addView(content,new LinearLayout.LayoutParams(-1,0,1));scopePanel=column();scopePanel.setPadding(dp(12),dp(4),dp(12),dp(6));content.addView(scopePanel,new FrameLayout.LayoutParams(-1,-1));
   LinearLayout chart=column();chart.setBackground(shape(surface));chart.setPadding(dp(12),0,dp(12),0);scopePanel.addView(chart,new LinearLayout.LayoutParams(-1,0,1));
   displayInfo=text("",11,muted);displayInfo.setGravity(Gravity.END);chart.addView(displayInfo);scope=new ScopeView(this,history,fg,line,YELLOW);scope.setSpeed(scrollSpeed);scope.setEnvelopeMode(envelopeDisplay);chart.addView(scope,new LinearLayout.LayoutParams(-1,0,1));
-  LinearLayout transport=new LinearLayout(this);transport.setGravity(Gravity.CENTER_VERTICAL);scopePanel.addView(transport);
-  listen=button(s(R.string.listen),transport,false);listen.setOnClickListener(v->listenAction());record=button(s(R.string.record),transport,true);record.setEnabled(false);record.setAlpha(.45f);record.setOnClickListener(v->recordAction());
-  timer=text("00:00",19,fg);timer.setGravity(Gravity.CENTER);transport.addView(timer,new LinearLayout.LayoutParams(0,dp(48),1));button(s(R.string.recordings),transport,false).setOnClickListener(v->showRecordings(true));
+  LinearLayout transport=column();transport.setPadding(0,dp(7),0,0);scopePanel.addView(transport);
+  LinearLayout controls=new LinearLayout(this);controls.setGravity(Gravity.CENTER_VERTICAL);transport.addView(controls);
+  listen=button(s(R.string.listen),controls,false);listen.setOnClickListener(v->listenAction());
+  record=button(s(R.string.record),controls,true);record.setEnabled(false);record.setAlpha(.45f);record.setOnClickListener(v->recordAction());
+  stop=button(s(R.string.stop),controls,false);stop.setOnClickListener(v->engine.stop());stop.setVisibility(View.GONE);
+  for(Button b:new Button[]{listen,record,stop}){
+   LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(48),1);p.setMargins(dp(3),dp(3),dp(3),dp(3));b.setLayoutParams(p);
+  }
+  LinearLayout footer=new LinearLayout(this);footer.setGravity(Gravity.CENTER_VERTICAL);transport.addView(footer);
+  timer=text("00:00",20,fg);timer.setTypeface(null,Typeface.BOLD);timer.setPadding(dp(8),0,0,0);
+  timer.setGravity(Gravity.CENTER_VERTICAL);footer.addView(timer,new LinearLayout.LayoutParams(0,dp(48),1));
+  button(s(R.string.recordings),footer,false).setOnClickListener(v->showRecordings(true));
   recordingsPanel=column();recordingsPanel.setPadding(dp(16),dp(4),dp(16),dp(8));recordingsPanel.setVisibility(View.GONE);content.addView(recordingsPanel,new FrameLayout.LayoutParams(-1,-1));
   TextView heading=text(s(R.string.recordings),22,fg);heading.setTypeface(null,Typeface.BOLD);recordingsPanel.addView(heading);ScrollView list=new ScrollView(this);list.setVerticalScrollBarEnabled(false);sessions=column();list.addView(sessions);recordingsPanel.addView(list,new LinearLayout.LayoutParams(-1,0,1));
   setContentView(root);root.requestApplyInsets();updateDisplay();library();((AudioManager)getSystemService(AUDIO_SERVICE)).registerAudioDeviceCallback(devices,ui);ui.post(tick);
@@ -107,7 +117,7 @@ public final class MainActivity extends Activity {
   Button naturalButton=choice(s(R.string.natural),filterStyles,!engine.settings.focused),focusedButton=choice(s(R.string.focused),filterStyles,engine.settings.focused);
   naturalButton.setOnClickListener(v->{Dsp.Settings d=engine.settings;engine.settings=new Dsp.Settings(d.lowHz,d.highHz,d.gainDb,d.enabled,d.notch,false);selected(naturalButton,true);selected(focusedButton,false);persistSettings();});
   focusedButton.setOnClickListener(v->{Dsp.Settings d=engine.settings;engine.settings=new Dsp.Settings(d.lowHz,d.highHz,d.gainDb,d.enabled,d.notch,true);selected(naturalButton,false);selected(focusedButton,true);persistSettings();});
-  button(s(R.string.reset),panel,false).setOnClickListener(v->{engine.settings=new Dsp.Settings(Dsp.HEART_LOW_HZ,Dsp.HEART_HIGH_HZ,0,true,false,false);engine.outputMode=AudioChannels.Mode.LEFT;engine.rawCapture=true;scrollSpeed=1;scope.setSpeed(1);envelopeDisplay=true;scope.setEnvelopeMode(true);persistSettings();dialog.dismiss();settings();});refresh.run();dialog.show();android.util.DisplayMetrics metrics=getResources().getDisplayMetrics();dialog.getWindow().setLayout(Math.min(dp(440),metrics.widthPixels-dp(32)),Math.min(dp(470),metrics.heightPixels-dp(24)));
+  button(s(R.string.reset),panel,false).setOnClickListener(v->{engine.settings=new Dsp.Settings(Dsp.HEART_LOW_HZ,Dsp.HEART_HIGH_HZ,0,true,false,false);engine.outputMode=AudioChannels.Mode.LEFT;engine.rawCapture=true;scrollSpeed=1;scope.setSpeed(1);envelopeDisplay=true;scope.setEnvelopeMode(true);persistSettings();dialog.dismiss();settings();});refresh.run();dialog.show();android.util.DisplayMetrics metrics=getResources().getDisplayMetrics();dialog.getWindow().setLayout(Math.min(dp(440),metrics.widthPixels-dp(32)),Math.min(dp(650),metrics.heightPixels-dp(56)));
  }
  private void adjust(int field,int delta,Runnable refresh){Dsp.Settings d=engine.settings;double low=d.lowHz,high=d.highHz,gain=d.gainDb;if(field==0)low=Math.max(10,Math.min(Math.min(500,high-20),low+delta));else if(field==1)high=Math.max(Math.max(100,low+20),Math.min(4000,high+delta));else gain=Math.max(-12,Math.min(36,gain+delta));engine.settings=new Dsp.Settings(low,high,gain,d.enabled,d.notch,d.focused);refresh.run();}
  private void enterValue(int field,Runnable refresh){Dsp.Settings d=engine.settings;int minimum=field==0?10:field==1?(int)Math.max(100,d.lowHz+20):-12,maximum=field==0?(int)Math.min(500,d.highHz-20):field==1?4000:36;EditText input=new EditText(this);input.setSingleLine();input.setInputType(InputType.TYPE_CLASS_NUMBER|(field==2?InputType.TYPE_NUMBER_FLAG_SIGNED:0));input.setText(String.valueOf((int)(field==0?d.lowHz:field==1?d.highHz:d.gainDb)));AlertDialog dialog=new AlertDialog.Builder(this).setTitle(s(R.string.value_title,s(field==0?R.string.high_pass_short:field==1?R.string.low_pass_short:R.string.gain_short))).setView(input).setNegativeButton(R.string.cancel,null).setPositiveButton(R.string.save,null).create();dialog.setOnShowListener(v->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(w->{try{int value=Integer.parseInt(input.getText().toString());if(value<minimum||value>maximum)throw new NumberFormatException();Dsp.Settings old=engine.settings;engine.settings=new Dsp.Settings(field==0?value:old.lowHz,field==1?value:old.highHz,field==2?value:old.gainDb,old.enabled,old.notch,old.focused);refresh.run();dialog.dismiss();}catch(NumberFormatException e){input.setError(s(R.string.value_invalid,minimum,maximum));}}));dialog.show();}
@@ -118,9 +128,48 @@ public final class MainActivity extends Activity {
   try{if(Wav.dataBytes(file)==0){Toast.makeText(this,R.string.empty_recording,Toast.LENGTH_LONG).show();library();return;}}
   catch(IOException e){Toast.makeText(this,R.string.invalid_recording,Toast.LENGTH_LONG).show();library();return;}if(isDestroyed()||isFinishing()||!hasWindowFocus()){library();return;}LinearLayout panel=column();panel.setPadding(dp(20),0,dp(20),0);panel.addView(text(s(R.string.duration,time(Math.max(0,(file.length()-44)/96000))),13,muted));panel.addView(text(s(R.string.session_name),14,fg));EditText name=new EditText(this);name.setSingleLine();name.setText(file.getName().replace(".wav",""));panel.addView(name);panel.addView(text(s(R.string.raw_saved),12,muted));new AlertDialog.Builder(this).setTitle(R.string.save_recording).setView(panel).setPositiveButton(R.string.save,(d,w)->{rename(file,name.getText().toString());library();}).setNeutralButton(R.string.keep_name,(d,w)->library()).setNegativeButton(R.string.discard,(d,w)->new AlertDialog.Builder(this).setMessage(R.string.discard_question).setNegativeButton(R.string.cancel,(a,b)->library()).setPositiveButton(R.string.discard,(a,b)->{if(!file.delete())Toast.makeText(this,R.string.export_failed,Toast.LENGTH_SHORT).show();library();}).show()).setOnCancelListener(d->library()).show();}
  private void rename(File file,String value){String label=value.trim().replaceAll("[^\\p{L}\\p{N} _-]","_");if(label.isEmpty())return;File target=new File(file.getParentFile(),label+".wav");if(!target.equals(file)&&(target.exists()||!file.renameTo(target)))Toast.makeText(this,R.string.name_unavailable,Toast.LENGTH_LONG).show();}
- private void library(){sessions.removeAllViews();File[] files=new File(getFilesDir(),"sessions").listFiles((dir,name)->name.endsWith(".wav"));if(files==null||files.length==0){sessions.addView(text(s(R.string.empty),15,muted));return;}Arrays.sort(files,(a,b)->Long.compare(b.lastModified(),a.lastModified()));for(File file:files){if(recording!=null&&file.equals(recording))continue;LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(12),dp(4),dp(12),dp(4));row.setBackground(shape(surface));LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,-2);params.bottomMargin=dp(8);sessions.addView(row,params);LinearLayout labels=column();labels.addView(text(file.getName().replace(".wav",""),15,fg));long bytes=-1;try{bytes=Wav.dataBytes(file);}catch(IOException ignored){}
-  final boolean available=bytes>0;
-  labels.addView(text(available?s(R.string.recording_details,time(bytes/96000),file.length()):s(R.string.invalid_recording),12,muted));row.addView(labels,new LinearLayout.LayoutParams(0,-2,1));MiniWave mini=new MiniWave(this);row.addView(mini,new LinearLayout.LayoutParams(dp(120),dp(40)));if(available)loadPreview(file,mini);Button playButton=button(s(R.string.play),row,true);playButton.setEnabled(available);playButton.setOnClickListener(v->{if(engine.isRunning()){Toast.makeText(this,R.string.stop_first,Toast.LENGTH_LONG).show();return;}start(file);});Button exportButton=button(s(R.string.export_wav),row,false);exportButton.setEnabled(available);exportButton.setOnClickListener(v->export(file));Button more=button("⋮",row,false);more.setContentDescription(s(R.string.more_actions,file.getName()));more.setOnClickListener(v->{PopupMenu menu=new PopupMenu(this,more);menu.getMenu().add(R.string.rename).setOnMenuItemClickListener(item->{EditText input=new EditText(this);input.setSingleLine();input.setText(file.getName().replace(".wav",""));new AlertDialog.Builder(this).setTitle(R.string.rename).setView(input).setPositiveButton(R.string.save,(a,b)->{rename(file,input.getText().toString());library();}).setNegativeButton(R.string.cancel,null).show();return true;});menu.getMenu().add(R.string.delete).setOnMenuItemClickListener(item->{new AlertDialog.Builder(this).setMessage(R.string.delete_question).setNegativeButton(R.string.cancel,null).setPositiveButton(R.string.delete,(a,b)->{file.delete();library();}).show();return true;});menu.show();});}}
+ private void library(){
+  sessions.removeAllViews();
+  File[] files=new File(getFilesDir(),"sessions").listFiles((dir,name)->name.endsWith(".wav"));
+  if(files==null||files.length==0){sessions.addView(text(s(R.string.empty),15,muted));return;}
+  Arrays.sort(files,(a,b)->Long.compare(b.lastModified(),a.lastModified()));
+  for(File file:files){
+   if(recording!=null&&file.equals(recording))continue;
+   LinearLayout card=column();card.setPadding(dp(12),dp(10),dp(12),dp(8));card.setBackground(shape(surface));
+   LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.bottomMargin=dp(10);sessions.addView(card,cp);
+   LinearLayout summary=new LinearLayout(this);summary.setGravity(Gravity.CENTER_VERTICAL);card.addView(summary,new LinearLayout.LayoutParams(-1,dp(54)));
+   LinearLayout description=column();summary.addView(description,new LinearLayout.LayoutParams(0,-2,1));
+   TextView name=text(file.getName().replace(".wav",""),15,fg);name.setSingleLine(true);
+   name.setEllipsize(TextUtils.TruncateAt.MIDDLE);name.setTypeface(null,Typeface.BOLD);description.addView(name);
+   long bytes=-1;try{bytes=Wav.dataBytes(file);}catch(IOException ignored){}
+   final boolean available=bytes>0;
+   description.addView(text(available?s(R.string.recording_details,time(bytes/96000),file.length()):s(R.string.invalid_recording),12,muted));
+   MiniWave mini=new MiniWave(this);summary.addView(mini,new LinearLayout.LayoutParams(dp(104),dp(42)));
+   if(available)loadPreview(file,mini);
+   LinearLayout actions=new LinearLayout(this);actions.setGravity(Gravity.CENTER_VERTICAL);card.addView(actions);
+   Button playButton=button(s(R.string.play),actions,true);playButton.setEnabled(available);
+   LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(0,dp(44),1);pp.setMargins(dp(2),dp(2),dp(2),dp(2));playButton.setLayoutParams(pp);
+   playButton.setOnClickListener(v->{if(engine.isRunning()){Toast.makeText(this,R.string.stop_first,Toast.LENGTH_LONG).show();return;}start(file);});
+   Button exportButton=button(s(R.string.export_wav),actions,false);exportButton.setEnabled(available);
+   LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(0,dp(44),1);ep.setMargins(dp(2),dp(2),dp(2),dp(2));exportButton.setLayoutParams(ep);
+   exportButton.setOnClickListener(v->export(file));
+   Button more=button("⋮",actions,false);more.setContentDescription(s(R.string.more_actions,file.getName()));
+   more.setOnClickListener(v->{
+    PopupMenu menu=new PopupMenu(this,more);
+    menu.getMenu().add(R.string.rename).setOnMenuItemClickListener(item->{
+     EditText input=new EditText(this);input.setSingleLine();input.setText(file.getName().replace(".wav",""));
+     new AlertDialog.Builder(this).setTitle(R.string.rename).setView(input)
+      .setPositiveButton(R.string.save,(a,b)->{rename(file,input.getText().toString());library();})
+      .setNegativeButton(R.string.cancel,null).show();return true;
+    });
+    menu.getMenu().add(R.string.delete).setOnMenuItemClickListener(item->{
+     new AlertDialog.Builder(this).setMessage(R.string.delete_question)
+      .setNegativeButton(R.string.cancel,null).setPositiveButton(R.string.delete,(a,b)->{file.delete();library();}).show();return true;
+    });
+    menu.show();
+   });
+  }
+ }
  private void loadPreview(File file,MiniWave view){previews.execute(()->{float[] values=new float[80];try(RandomAccessFile in=new RandomAccessFile(file,"r")){long samples=Math.max(0,(in.length()-44)/2);for(int i=0;i<values.length;i++){if(Thread.currentThread().isInterrupted())return;long offset=samples*i/values.length;in.seek(44+offset*2);int peak=0;for(int j=0;j<48&&offset+j<samples;j++){int lo=in.read(),hi=in.read();if(lo<0||hi<0)break;peak=Math.max(peak,Math.abs((int)(short)(lo|(hi<<8))));}values[i]=peak;}}catch(IOException ignored){}ui.post(()->{if(!isDestroyed()){view.values=values;view.invalidate();}});});}
  private void export(File file){
   try{if(Wav.dataBytes(file)==0){Toast.makeText(this,R.string.empty_recording,Toast.LENGTH_LONG).show();return;}}
