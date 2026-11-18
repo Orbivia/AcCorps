@@ -33,12 +33,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view accorps-test-0.4.1 >/dev/null 2>&1; then
-            test "$(gh release view accorps-test-0.4.1 --json isDraft --jq .isDraft)" = true
-            gh release edit accorps-test-0.4.1 --draft --target "${{ github.sha }}" --title "AcCorps 0.4.1 — Android test"
-            gh release upload accorps-test-0.4.1 app/build/outputs/apk/debug/app-debug.apk --clobber
+          if gh release view accorps-test-0.5.0 >/dev/null 2>&1; then
+            test "$(gh release view accorps-test-0.5.0 --json isDraft --jq .isDraft)" = true
+            gh release edit accorps-test-0.5.0 --draft --target "${{ github.sha }}" --title "AcCorps 0.5.0 — Android test"
+            gh release upload accorps-test-0.5.0 app/build/outputs/apk/debug/app-debug.apk --clobber
           else
-            gh release create accorps-test-0.4.1 app/build/outputs/apk/debug/app-debug.apk --draft --target "${{ github.sha }}" --title "AcCorps 0.4.1 — Android test" --notes "Essential landscape scope with live Left only (default), Right only and Stereo output selection under settings, plus existing filtering and WAV recording. Hardware validation remains necessary."
+            gh release create accorps-test-0.5.0 app/build/outputs/apk/debug/app-debug.apk --draft --target "${{ github.sha }}" --title "AcCorps 0.5.0 — Android test" --notes "Temporary spiral launcher icon; second-order Butterworth filtering for Heart 20-400 Hz and Lungs 100-2000 Hz; selectable waveform/envelope display; existing channel routing and original WAV recording. Hardware validation remains necessary."
           fi
       - name: Prepare verified APK delivery
         run: |

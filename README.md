@@ -1,4 +1,4 @@
-# AcCorps Android — prototype 0.4.1
+# AcCorps Android — prototype 0.5.0
 
 Application Android native Java, Android 8+ : écoute externe en direct, gain manuel, filtres Cœur / Poumons / Brut, forme d’onde, enregistrements WAV PCM mono 48 kHz 16 bits, réécoute avec réglages et export par le sélecteur Android. Aucune permission Internet, fichiers privés, sauvegarde système désactivée.
 
@@ -9,7 +9,7 @@ Brancher un casque filaire avec micro ou USB compatible. Autoriser le micro puis
 Interface en anglais par défaut, ressources centralisées dans `values/strings.xml`, palette PrintLeft claire/sombre selon le téléphone (fond gris, cartes de rayon 18 dp, jaune #FFCC32), onglets Listen / Recordings / Help. Bulle « i » accessible en en-tête : conditions d’utilisation, fonctionnement et confidentialité, sans validation forcée. Commandes Listen / Record groupées. Coupe-bas 10–500 Hz, coupe-haut 100–4000 Hz (écart minimum 20 Hz), réjecteur 50 Hz, activation/bypass et gain sont modifiables pendant l’écoute et la relecture. Les profils Cœur/Poumons chargent des points de départ ; une modification manuelle passe en réglage personnalisé. Les paramètres sont transmis ensemble au moteur au prochain bloc audio, avec transition lissée sur une constante de temps de 20 ms. Le réjecteur 50 Hz peut retirer du signal utile : il est désactivé par défaut. Les WAV restent indépendants des réglages.
 
 ## Traitement
-AudioRecord UNPROCESSED → passe-haut/passe-bas du premier ordre (Cœur 25–400 Hz ; Poumons 80–2000 Hz ; Brut contourne les filtres) → réjecteur 50 Hz optionnel (Q=20) → gain −12 à +24 dB → montée progressive et saturation douce bornée → AudioTrack. Les profils sont exploratoires : aucune validation clinique ni mesure de fréquence cardiaque. Le profil Brut conserve la limitation de sortie. Aucun débruitage vocal qui pourrait supprimer des sons utiles. UNPROCESSED peut dépendre du téléphone ; le fichier ne garantit pas l’absence de traitement matériel. La limite numérique ne garantit pas un niveau acoustique sûr avec tous les écouteurs.
+AudioRecord UNPROCESSED → passe-haut/passe-bas Butterworth du deuxième ordre (Cœur 20–400 Hz ; Poumons 100–2000 Hz ; Brut contourne les filtres) → réjecteur 50 Hz optionnel (Q=20) → gain −12 à +24 dB → montée progressive et saturation douce bornée → AudioTrack. Les profils sont exploratoires : aucune validation clinique ni mesure de fréquence cardiaque. Le profil Brut conserve la limitation de sortie. Aucun débruitage vocal qui pourrait supprimer des sons utiles. UNPROCESSED peut dépendre du téléphone ; le fichier ne garantit pas l’absence de traitement matériel. La limite numérique ne garantit pas un niveau acoustique sûr avec tous les écouteurs.
 
 ## Compilation
 JDK 17, Android SDK 35, Gradle 8.11.1 : `gradle :app:assembleDebug :app:lintDebug`.
@@ -22,9 +22,14 @@ Latence réelle non mesurée ; le mode faible latence est une demande au systèm
 https://developer.android.com/reference/android/media/AudioRecord
 https://developer.android.com/reference/android/media/AudioTrack
 
-## Essential 0.4.1
+## Essential 0.5.0
 Scope en paysage (sensorLandscape), entête compact et historique audio glissant. Tous les blocs audio alimentent un tampon min/max à 1 ms : le rafraîchissement de l’écran ne supprime aucun bloc du tracé. Fenêtres 10 s / 5 s / 2,5 s pour les vitesses 0,5× / 1× / 2×, sans changer l’audio. Affichage d’amplitude à échelle automatique. « Pause scope » fige uniquement le tracé ; le son et l’enregistrement continuent. « Stop » termine la session audio.
 
 Réglages centralisés dans l’engrenage : boutons de vitesse, profils, pas numériques ± et saisie directe, activation des filtres, réjecteur 50 Hz, gain et réinitialisation. Aucune SeekBar ni contrôle de plage. Réglages mémorisés sur le téléphone. Liste des WAV avec aperçus réels sous-échantillonnés, lecture, export, renommage et suppression avec confirmation. Nommage à la fin de l’enregistrement, avec conservation ou abandon confirmé.
 
 Validation automatisée : DSP/WAV et ScopeHistory (continuité, chronologie après bouclage, conservation des extrema entre blocs, durée et fenêtres de vitesse), compilation et lint. La lisibilité effective sur appareil, la latence et les conditions acoustiques restent à tester sur le téléphone.
+
+## Prototype 0.5.0 — écoute et affichage
+Icône provisoire vectorielle jaune en spirale sur fond ardoise (adaptive icon), facilement remplaçable.
+Profils Cœur 20–400 Hz et Poumons 100–2000 Hz avec filtres passe-haut et passe-bas Butterworth du deuxième ordre (12 dB/octave chacun), paramètres lissés en direct. Gain manuel et limitation numérique douce ; ne pas activer le notch 50 Hz sans vérifier qu'il ne supprime pas de composantes cardiaques utiles.
+Affichage Envelope (par défaut, RMS par milliseconde avec attaque/relâchement) ou Waveform (oscillogramme filtré), tous deux à échelle relative automatique. Le tracé reste audio et non ECG. WAV mono conservé avant filtres et gain. Validation acoustique sur microphone, pavillon, câble et casque encore nécessaire ; application expérimentale sans usage diagnostic validé.
