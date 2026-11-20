@@ -39,16 +39,6 @@ jobs:
           name: AcCorps-0.7.0-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
-      - name: Save test APK release in private repository
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if gh release view accorps-test-0.7.0 >/dev/null 2>&1; then
-            gh release edit accorps-test-0.7.0 --draft=false --latest=false --target "${{ github.sha }}" --title "AcCorps 0.7.0 — Android test"
-            gh release upload accorps-test-0.7.0 app/build/outputs/apk/debug/app-debug.apk --clobber
-          else
-            gh release create accorps-test-0.7.0 app/build/outputs/apk/debug/app-debug.apk --draft=false --latest=false --target "${{ github.sha }}" --title "AcCorps 0.7.0 — Android test" --notes "Larger scope, quick heart/lungs presets, reorganized settings, experimental pitch transposition; original WAV preserved."
-          fi
       - name: Verify APK checksum
         run: |
           sha256sum app/build/outputs/apk/debug/app-debug.apk
