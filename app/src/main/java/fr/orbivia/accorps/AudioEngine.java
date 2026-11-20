@@ -21,6 +21,10 @@ public final class AudioEngine {
  public volatile boolean rawCapture=true;
  /** Temporary listening comparison; never changes source recording or saved presets. */
  public volatile boolean compareRaw=false;
+ /** Experimental monitoring-only pitch transposition (saved WAV always stays original). */
+ public volatile boolean pitchEnabled=false;
+ public volatile double pitchFactor=3.0;
+ public volatile int pitchMix=100;
  public volatile float inputPeak=0,outputPeak=0;
  public volatile boolean limiterActive=false;
  private volatile AudioTrack output;
@@ -62,7 +66,8 @@ public final class AudioEngine {
     if(mic.getState()!=AudioRecord.STATE_INITIALIZED || !mic.setPreferredDevice(source)) throw new IOException(context.getString(R.string.err_mic));
     mic.startRecording();captureReady=true;
    } else { if(Wav.dataBytes(playback)<=0)throw new IOException(context.getString(R.string.invalid_recording));file=new RandomAccessFile(playback,"r");file.seek(44); }
-   Dsp dsp=new Dsp(); short[] raw=new short[480], processed=new short[480], stereo=new short[960]; byte[] bytes=new byte[960];
+   Dsp dsp=new Dsp(); PitchShifter pitch=new PitchShifter();
+   short[] raw=new short[480],processed=new short[480],monitor=new short[480],stereo=new short[960];byte[] bytes=new byte[960];
    track.play();
    while(running) {
     int n;
@@ -85,7 +90,9 @@ public final class AudioEngine {
     // Ensure mono phone speakers get a full-level stereo feed.
     if(!live&&routed!=null&&(routed.getType()==AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
      ||routed.getType()==AudioDeviceInfo.TYPE_BUILTIN_EARPIECE))mode=AudioChannels.Mode.STEREO;
-    AudioChannels.route(processed,stereo,n,mode);
+    pitch.process(processed,monitor,n,pitchEnabled&&!compareRaw?pitchFactor:1.0,
+       pitchEnabled&&!compareRaw?pitchMix/100.0:0.0);
+    AudioChannels.route(monitor,stereo,n,mode);
     int samples=2*n;
     int offset=0; while(offset<samples && running) { int written=track.write(stereo,offset,samples-offset,AudioTrack.WRITE_BLOCKING); if(written<=0) throw new IOException(context.getString(R.string.err_write)); offset+=written; }
     processedFrames+=n;
