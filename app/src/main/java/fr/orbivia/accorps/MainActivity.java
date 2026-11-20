@@ -77,7 +77,7 @@ public final class MainActivity extends Activity {
   };
   quickModes[0].setOnClickListener(v->quickPreset(false));
   quickModes[1].setOnClickListener(v->quickPreset(true));
-  quickModes[2].setOnClickListener(v->settings());
+  quickModes[2].setOnClickListener(v->settings(2));
   refreshQuickModes();
   LinearLayout chart=column();chart.setBackground(shape(surface));chart.setPadding(dp(10),0,dp(10),0);scopePanel.addView(chart,new LinearLayout.LayoutParams(-1,0,1));
   LinearLayout chartHeader=new LinearLayout(this);chartHeader.setGravity(Gravity.CENTER_VERTICAL);chart.addView(chartHeader,new LinearLayout.LayoutParams(-1,dp(34)));
@@ -152,24 +152,30 @@ public final class MainActivity extends Activity {
   levelInfo.setText(clipped?s(R.string.input_clipped):limited?s(R.string.output_limited):s(R.string.input_db,db));
   levelInfo.setTextColor(clipped||limited?0xFFE65A53:muted);
  }
- private void settings(){
+ private void settings(){settings(0);}
+ private void settings(int initialTab){
   LinearLayout container=column();
   LinearLayout tabs=new LinearLayout(this);tabs.setPadding(dp(8),0,dp(8),dp(3));container.addView(tabs);
   LinearLayout panel=column();panel.setPadding(dp(16),dp(4),dp(16),dp(8));
   LinearLayout displayPanel=column(),audioPanel=column(),filtersPanel=column();
   panel.addView(displayPanel);panel.addView(audioPanel);panel.addView(filtersPanel);
   ScrollView scroller=new ScrollView(this);scroller.setVerticalScrollBarEnabled(false);scroller.addView(panel);
-  container.addView(scroller,new LinearLayout.LayoutParams(-1,Math.min(dp(460),getResources().getDisplayMetrics().heightPixels-dp(220))));
+  int availableHeight=Math.max(dp(160),getResources().getDisplayMetrics().heightPixels-dp(220));
+   int[] panelHeights={dp(174),dp(394),dp(430)};
+   container.addView(scroller,new LinearLayout.LayoutParams(-1,Math.min(panelHeights[initialTab],availableHeight)));
   Button[] sectionButtons=new Button[3];
   int[] sectionLabels={R.string.section_display,R.string.section_audio,R.string.section_filters};
-  for(int i=0;i<3;i++){final int index=i;sectionButtons[i]=choice(s(sectionLabels[i]),tabs,i==0);sectionButtons[i].setOnClickListener(v->{
+  for(int i=0;i<3;i++){final int index=i;sectionButtons[i]=choice(s(sectionLabels[i]),tabs,i==initialTab);sectionButtons[i].setOnClickListener(v->{
    displayPanel.setVisibility(index==0?View.VISIBLE:View.GONE);
    audioPanel.setVisibility(index==1?View.VISIBLE:View.GONE);
    filtersPanel.setVisibility(index==2?View.VISIBLE:View.GONE);
    for(int j=0;j<3;j++)selected(sectionButtons[j],j==index);
-   scroller.scrollTo(0,0);
+   scroller.setLayoutParams(new LinearLayout.LayoutParams(-1,Math.min(panelHeights[index],availableHeight)));
+    scroller.scrollTo(0,0);
   });}
-  audioPanel.setVisibility(View.GONE);filtersPanel.setVisibility(View.GONE);
+    displayPanel.setVisibility(initialTab==0?View.VISIBLE:View.GONE);
+   audioPanel.setVisibility(initialTab==1?View.VISIBLE:View.GONE);
+   filtersPanel.setVisibility(initialTab==2?View.VISIBLE:View.GONE);
   AlertDialog dialog=new AlertDialog.Builder(this).setTitle(R.string.scope_settings).setView(container).setPositiveButton(R.string.close,null).create();
   displayPanel.addView(text(s(R.string.scroll_speed),13,muted));LinearLayout speeds=new LinearLayout(this);displayPanel.addView(speeds);Button[] speedButtons=new Button[4];double[] choices={.5,1,2,4};
   for(int i=0;i<4;i++){final double value=choices[i];speedButtons[i]=choice(formatSpeed(value)+"×",speeds,scrollSpeed==value);speedButtons[i].setOnClickListener(v->{scrollSpeed=value;scope.setSpeed(value);persistSettings();for(int j=0;j<4;j++)selected(speedButtons[j],choices[j]==scrollSpeed);});}
@@ -177,6 +183,27 @@ public final class MainActivity extends Activity {
   Button envelopeButton=choice(s(R.string.envelope),graphModes,envelopeDisplay),waveformButton=choice(s(R.string.waveform),graphModes,!envelopeDisplay);
   envelopeButton.setOnClickListener(v->{envelopeDisplay=true;scope.setEnvelopeMode(true);selected(envelopeButton,true);selected(waveformButton,false);persistSettings();});
   waveformButton.setOnClickListener(v->{envelopeDisplay=false;scope.setEnvelopeMode(false);selected(envelopeButton,false);selected(waveformButton,true);persistSettings();});
+   LinearLayout pitchRow=settingRow(audioPanel,s(R.string.pitch_shift));
+   Button pitchOff=choice(s(R.string.off),pitchRow,!engine.pitchEnabled),
+          pitchOn=choice(s(R.string.on),pitchRow,engine.pitchEnabled);
+   pitchOff.setOnClickListener(v->{engine.pitchEnabled=false;selected(pitchOff,true);selected(pitchOn,false);persistSettings();refreshCompare();});
+   pitchOn.setOnClickListener(v->{engine.pitchEnabled=true;selected(pitchOff,false);selected(pitchOn,true);persistSettings();refreshCompare();});
+   TextView pitchWarning=text(s(R.string.pitch_experimental),11,muted);
+   pitchWarning.setPadding(0,0,0,dp(8));audioPanel.addView(pitchWarning);
+   TextView[] pitchValues=new TextView[2];
+   Runnable refreshPitch=()->{
+    pitchValues[0].setText(String.format(Locale.ROOT,"×%.1f",engine.pitchFactor));
+    pitchValues[1].setText(engine.pitchMix+" %");persistSettings();refreshCompare();
+   };
+   stepper(audioPanel,R.string.pitch_factor,pitchValues,0,
+    ()->{engine.pitchFactor=Math.round(Math.max(1,engine.pitchFactor-.1)*10)/10.0;refreshPitch.run();},
+    ()->{engine.pitchFactor=Math.round(Math.min(5,engine.pitchFactor+.1)*10)/10.0;refreshPitch.run();},
+    ()->enterPitchValue(true,refreshPitch));
+   stepper(audioPanel,R.string.pitch_mix,pitchValues,1,
+    ()->{engine.pitchMix=Math.max(0,engine.pitchMix-10);refreshPitch.run();},
+    ()->{engine.pitchMix=Math.min(100,engine.pitchMix+10);refreshPitch.run();},
+    ()->enterPitchValue(false,refreshPitch));
+   refreshPitch.run();
   audioPanel.addView(text(s(R.string.audio_output),13,muted));LinearLayout outputs=new LinearLayout(this);audioPanel.addView(outputs);
   AudioChannels.Mode[] channelModes={AudioChannels.Mode.LEFT,AudioChannels.Mode.RIGHT,AudioChannels.Mode.STEREO};
   int[] channelLabels={R.string.left_only,R.string.right_only,R.string.stereo};Button[] outputButtons=new Button[3];
@@ -194,8 +221,8 @@ public final class MainActivity extends Activity {
   Runnable refresh=()->{Dsp.Settings d=engine.settings;values[0].setText(s(R.string.hz_value,(int)d.lowHz));values[1].setText(s(R.string.hz_value,(int)d.highHz));values[2].setText(s(R.string.db_value,(int)d.gainDb));persistSettings();};
   Runnable manual=()->{for(int j=0;j<5;j++)selected(presets[j],j==(!engine.settings.enabled?3:4));refresh.run();};
   stepper(filtersPanel,R.string.high_pass_short,values,0,()->adjust(0,-5,manual),()->adjust(0,5,manual),()->enterValue(0,manual));
-  stepper(panel,R.string.low_pass_short,values,1,()->adjust(1,-50,manual),()->adjust(1,50,manual),()->enterValue(1,manual));
-  stepper(panel,R.string.gain_short,values,2,()->adjust(2,-1,manual),()->adjust(2,1,manual),()->enterValue(2,manual));
+  stepper(filtersPanel,R.string.low_pass_short,values,1,()->adjust(1,-50,manual),()->adjust(1,50,manual),()->enterValue(1,manual));
+  stepper(audioPanel,R.string.gain_short,values,2,()->adjust(2,-1,manual),()->adjust(2,1,manual),()->enterValue(2,manual));
   LinearLayout enabledRow=settingRow(filtersPanel,s(R.string.filters_enabled));Button[] enabledButtons={choice(s(R.string.off),enabledRow,!engine.settings.enabled),choice(s(R.string.on),enabledRow,engine.settings.enabled)};
   LinearLayout notchRow=settingRow(filtersPanel,s(R.string.notch_short));Button[] notchButtons={choice(s(R.string.off),notchRow,!engine.settings.notch),choice(s(R.string.on),notchRow,engine.settings.notch)};
   for(int i=0;i<2;i++){final boolean on=i==1;enabledButtons[i].setOnClickListener(v->{Dsp.Settings d=engine.settings;engine.settings=new Dsp.Settings(d.lowHz,d.highHz,d.gainDb,on,d.notch,d.focused);selected(enabledButtons[0],!on);selected(enabledButtons[1],on);manual.run();});notchButtons[i].setOnClickListener(v->{Dsp.Settings d=engine.settings;engine.settings=new Dsp.Settings(d.lowHz,d.highHz,d.gainDb,d.enabled,on,d.focused);selected(notchButtons[0],!on);selected(notchButtons[1],on);manual.run();});}
@@ -208,10 +235,28 @@ public final class MainActivity extends Activity {
   Button naturalButton=choice(s(R.string.natural),filterStyles,!engine.settings.focused),focusedButton=choice(s(R.string.focused),filterStyles,engine.settings.focused);
   naturalButton.setOnClickListener(v->{Dsp.Settings d=engine.settings;engine.settings=new Dsp.Settings(d.lowHz,d.highHz,d.gainDb,d.enabled,d.notch,false);selected(naturalButton,true);selected(focusedButton,false);persistSettings();});
   focusedButton.setOnClickListener(v->{Dsp.Settings d=engine.settings;engine.settings=new Dsp.Settings(d.lowHz,d.highHz,d.gainDb,d.enabled,d.notch,true);selected(naturalButton,false);selected(focusedButton,true);persistSettings();});
-  button(s(R.string.reset),filtersPanel,false).setOnClickListener(v->{engine.settings=new Dsp.Settings(Dsp.HEART_LOW_HZ,Dsp.HEART_HIGH_HZ,0,true,false,false);engine.outputMode=AudioChannels.Mode.LEFT;engine.rawCapture=true;scrollSpeed=1;scope.setSpeed(1);envelopeDisplay=true;scope.setEnvelopeMode(true);persistSettings();dialog.dismiss();settings();});refresh.run();dialog.show();android.util.DisplayMetrics metrics=getResources().getDisplayMetrics();dialog.getWindow().setLayout(Math.min(dp(440),metrics.widthPixels-dp(32)),Math.min(dp(650),metrics.heightPixels-dp(76)));
+  button(s(R.string.reset),filtersPanel,false).setOnClickListener(v->{engine.settings=new Dsp.Settings(Dsp.HEART_LOW_HZ,Dsp.HEART_HIGH_HZ,0,true,false,false);engine.outputMode=AudioChannels.Mode.LEFT;engine.rawCapture=true;engine.pitchEnabled=false;engine.pitchFactor=3;engine.pitchMix=100;scrollSpeed=1;scope.setSpeed(1);envelopeDisplay=true;scope.setEnvelopeMode(true);persistSettings();dialog.dismiss();settings(2);});refresh.run();dialog.show();android.util.DisplayMetrics metrics=getResources().getDisplayMetrics();dialog.getWindow().setLayout(Math.min(dp(440),metrics.widthPixels-dp(32)),WindowManager.LayoutParams.WRAP_CONTENT);
  }
  private void adjust(int field,int delta,Runnable refresh){Dsp.Settings d=engine.settings;double low=d.lowHz,high=d.highHz,gain=d.gainDb;if(field==0)low=Math.max(10,Math.min(Math.min(500,high-20),low+delta));else if(field==1)high=Math.max(Math.max(100,low+20),Math.min(4000,high+delta));else gain=Math.max(-12,Math.min(36,gain+delta));engine.settings=new Dsp.Settings(low,high,gain,d.enabled,d.notch,d.focused);refresh.run();}
  private void enterValue(int field,Runnable refresh){Dsp.Settings d=engine.settings;int minimum=field==0?10:field==1?(int)Math.max(100,d.lowHz+20):-12,maximum=field==0?(int)Math.min(500,d.highHz-20):field==1?4000:36;EditText input=new EditText(this);input.setSingleLine();input.setInputType(InputType.TYPE_CLASS_NUMBER|(field==2?InputType.TYPE_NUMBER_FLAG_SIGNED:0));input.setText(String.valueOf((int)(field==0?d.lowHz:field==1?d.highHz:d.gainDb)));AlertDialog dialog=new AlertDialog.Builder(this).setTitle(s(R.string.value_title,s(field==0?R.string.high_pass_short:field==1?R.string.low_pass_short:R.string.gain_short))).setView(input).setNegativeButton(R.string.cancel,null).setPositiveButton(R.string.save,null).create();dialog.setOnShowListener(v->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(w->{try{int value=Integer.parseInt(input.getText().toString());if(value<minimum||value>maximum)throw new NumberFormatException();Dsp.Settings old=engine.settings;engine.settings=new Dsp.Settings(field==0?value:old.lowHz,field==1?value:old.highHz,field==2?value:old.gainDb,old.enabled,old.notch,old.focused);refresh.run();dialog.dismiss();}catch(NumberFormatException e){input.setError(s(R.string.value_invalid,minimum,maximum));}}));dialog.show();}
+ private void enterPitchValue(boolean factor,Runnable refresh){
+  EditText field=new EditText(this);field.setSingleLine(true);
+  field.setInputType(InputType.TYPE_CLASS_NUMBER|(factor?InputType.TYPE_NUMBER_FLAG_DECIMAL:0));
+  field.setText(factor?String.format(Locale.ROOT,"%.1f",engine.pitchFactor):String.valueOf(engine.pitchMix));
+  int title=factor?R.string.pitch_factor:R.string.pitch_mix;
+  AlertDialog d=new AlertDialog.Builder(this).setTitle(title).setView(field)
+    .setNegativeButton(R.string.cancel,null).setPositiveButton(R.string.save,null).create();
+  d.setOnShowListener(v->d.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(w->{
+   try{
+    double parsed=Double.parseDouble(field.getText().toString().trim());
+    if(!Double.isFinite(parsed)||parsed<(factor?1:0)||parsed>(factor?5:100))throw new NumberFormatException();
+    if(factor)engine.pitchFactor=Math.round(parsed*10)/10.0;
+    else engine.pitchMix=(int)Math.round(parsed);
+    refresh.run();d.dismiss();
+   }catch(NumberFormatException error){field.setError(factor?s(R.string.pitch_invalid):s(R.string.mix_invalid));}
+  }));
+  d.show();
+ }
  private LinearLayout settingRow(LinearLayout panel,String label){LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);panel.addView(row);TextView title=text(label,14,fg);row.addView(title,new LinearLayout.LayoutParams(0,-2,1));return row;}
  private void stepper(LinearLayout panel,int label,TextView[] values,int index,Runnable minus,Runnable plus,Runnable edit){LinearLayout row=settingRow(panel,s(label));button("−",row,false).setOnClickListener(v->minus.run());Button value=button("",row,false);values[index]=value;value.setMinWidth(dp(86));value.setContentDescription(s(label));value.setOnClickListener(v->edit.run());button("+",row,false).setOnClickListener(v->plus.run());}
  private void terms(){
