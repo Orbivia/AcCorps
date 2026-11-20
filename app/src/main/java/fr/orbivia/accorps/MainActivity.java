@@ -29,6 +29,7 @@ public final class MainActivity extends Activity {
  private TextView state,timer,displayInfo,levelInfo;
  private ProgressBar inputMeter;
  private Button compareButton;
+ private Button[] quickModes;
  private long lastMeterUpdate;
  private Button listen,record,stop,back;
  private File recording,export;
@@ -63,35 +64,46 @@ public final class MainActivity extends Activity {
   TextView brand=text(s(R.string.app_name),21,fg);brand.setTypeface(null,Typeface.BOLD);header.addView(brand);
   header.addView(new Space(this),new LinearLayout.LayoutParams(0,1,1));
   icon(header,android.R.drawable.ic_menu_info_details,R.string.terms_info,this::terms);icon(header,android.R.drawable.ic_menu_manage,R.string.settings_info,this::settings);
-  root.addView(header,new LinearLayout.LayoutParams(-1,dp(56)));
+  root.addView(header,new LinearLayout.LayoutParams(-1,dp(49)));
   state=text(s(R.string.connect),12,muted);state.setPadding(dp(18),0,dp(18),dp(7));state.setMaxLines(2);
-  state.setEllipsize(TextUtils.TruncateAt.END);root.addView(state,new LinearLayout.LayoutParams(-1,dp(40)));
-  FrameLayout content=new FrameLayout(this);root.addView(content,new LinearLayout.LayoutParams(-1,0,1));scopePanel=column();scopePanel.setPadding(dp(12),dp(4),dp(12),dp(6));content.addView(scopePanel,new FrameLayout.LayoutParams(-1,-1));
-  LinearLayout chart=column();chart.setBackground(shape(surface));chart.setPadding(dp(12),0,dp(12),0);scopePanel.addView(chart,new LinearLayout.LayoutParams(-1,0,1));
-  LinearLayout chartHeader=new LinearLayout(this);chartHeader.setGravity(Gravity.CENTER_VERTICAL);chart.addView(chartHeader,new LinearLayout.LayoutParams(-1,dp(43)));
+  state.setEllipsize(TextUtils.TruncateAt.END);root.addView(state,new LinearLayout.LayoutParams(-1,dp(29)));
+  FrameLayout content=new FrameLayout(this);root.addView(content,new LinearLayout.LayoutParams(-1,0,1));scopePanel=column();scopePanel.setPadding(dp(8),dp(2),dp(8),dp(4));content.addView(scopePanel,new FrameLayout.LayoutParams(-1,-1));
+  LinearLayout modeRow=new LinearLayout(this);modeRow.setGravity(Gravity.CENTER_VERTICAL);
+  scopePanel.addView(modeRow,new LinearLayout.LayoutParams(-1,dp(40)));
+  quickModes=new Button[]{
+    choice(s(R.string.heart),modeRow,false),
+    choice(s(R.string.lungs),modeRow,false),
+    choice(s(R.string.custom),modeRow,false)
+  };
+  quickModes[0].setOnClickListener(v->quickPreset(false));
+  quickModes[1].setOnClickListener(v->quickPreset(true));
+  quickModes[2].setOnClickListener(v->settings());
+  refreshQuickModes();
+  LinearLayout chart=column();chart.setBackground(shape(surface));chart.setPadding(dp(10),0,dp(10),0);scopePanel.addView(chart,new LinearLayout.LayoutParams(-1,0,1));
+  LinearLayout chartHeader=new LinearLayout(this);chartHeader.setGravity(Gravity.CENTER_VERTICAL);chart.addView(chartHeader,new LinearLayout.LayoutParams(-1,dp(34)));
   displayInfo=text("",11,muted);displayInfo.setGravity(Gravity.CENTER_VERTICAL);chartHeader.addView(displayInfo,new LinearLayout.LayoutParams(0,-2,1));
   compareButton=button(s(R.string.compare_filtered),chartHeader,false);compareButton.setTextSize(11);compareButton.setMinWidth(dp(104));
   compareButton.setOnClickListener(v->{engine.compareRaw=!engine.compareRaw;refreshCompare();});refreshCompare();
-  LinearLayout meterRow=new LinearLayout(this);meterRow.setGravity(Gravity.CENTER_VERTICAL);chart.addView(meterRow,new LinearLayout.LayoutParams(-1,dp(22)));
+  LinearLayout meterRow=new LinearLayout(this);meterRow.setGravity(Gravity.CENTER_VERTICAL);chart.addView(meterRow,new LinearLayout.LayoutParams(-1,dp(20)));
   levelInfo=text(s(R.string.input_level_idle),11,muted);meterRow.addView(levelInfo,new LinearLayout.LayoutParams(dp(101),-2));
   inputMeter=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);inputMeter.setMax(100);
   inputMeter.setProgressTintList(android.content.res.ColorStateList.valueOf(YELLOW));
   inputMeter.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(line));
   meterRow.addView(inputMeter,new LinearLayout.LayoutParams(0,dp(5),1));
-  scope=new ScopeView(this,history,fg,line,YELLOW);scope.setSpeed(scrollSpeed);scope.setEnvelopeMode(envelopeDisplay);
-  scope.setOnClickListener(v->{scrollSpeed=scrollSpeed==4?1:4;scope.setSpeed(scrollSpeed);persistSettings();Toast.makeText(this,s(R.string.zoom_feedback,formatSpeed(scrollSpeed)),Toast.LENGTH_SHORT).show();});
+  scope=new ScopeView(this,history,YELLOW,line,YELLOW);scope.setSpeed(scrollSpeed);scope.setEnvelopeMode(envelopeDisplay);
+  scope.setOnClickListener(v->{scrollSpeed=scrollSpeed==2?1:2;scope.setSpeed(scrollSpeed);persistSettings();Toast.makeText(this,s(R.string.zoom_feedback,formatSpeed(scrollSpeed)),Toast.LENGTH_SHORT).show();});
   scope.setContentDescription(s(R.string.scope_tap_zoom));chart.addView(scope,new LinearLayout.LayoutParams(-1,0,1));
-  LinearLayout transport=column();transport.setPadding(0,dp(7),0,0);scopePanel.addView(transport);
+  LinearLayout transport=column();transport.setPadding(0,dp(3),0,0);scopePanel.addView(transport);
   LinearLayout controls=new LinearLayout(this);controls.setGravity(Gravity.CENTER_VERTICAL);transport.addView(controls);
   listen=button(s(R.string.listen),controls,false);listen.setOnClickListener(v->listenAction());
   record=button(s(R.string.record),controls,true);record.setEnabled(false);record.setAlpha(.45f);styleRecording(false);record.setOnClickListener(v->recordAction());
   stop=button(s(R.string.stop),controls,false);stop.setOnClickListener(v->engine.stop());stop.setVisibility(View.GONE);
   for(Button b:new Button[]{listen,record,stop}){
-   LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(48),1);p.setMargins(dp(3),dp(3),dp(3),dp(3));b.setLayoutParams(p);
+   LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(45),1);p.setMargins(dp(3),dp(2),dp(3),dp(2));b.setLayoutParams(p);
   }
   LinearLayout footer=new LinearLayout(this);footer.setGravity(Gravity.CENTER_VERTICAL);transport.addView(footer);
   timer=text("00:00",20,fg);timer.setTypeface(null,Typeface.BOLD);timer.setPadding(dp(8),0,0,0);
-  timer.setGravity(Gravity.CENTER_VERTICAL);footer.addView(timer,new LinearLayout.LayoutParams(0,dp(48),1));
+  timer.setGravity(Gravity.CENTER_VERTICAL);footer.addView(timer,new LinearLayout.LayoutParams(0,dp(42),1));
   button(s(R.string.recordings),footer,false).setOnClickListener(v->showRecordings(true));
   recordingsPanel=column();recordingsPanel.setPadding(dp(16),dp(4),dp(16),dp(8));recordingsPanel.setVisibility(View.GONE);content.addView(recordingsPanel,new FrameLayout.LayoutParams(-1,-1));
   TextView heading=text(s(R.string.recordings),22,fg);heading.setTypeface(null,Typeface.BOLD);recordingsPanel.addView(heading);ScrollView list=new ScrollView(this);list.setVerticalScrollBarEnabled(false);sessions=column();list.addView(sessions);recordingsPanel.addView(list,new LinearLayout.LayoutParams(-1,0,1));
@@ -104,11 +116,33 @@ public final class MainActivity extends Activity {
  private void start(File file){history.clear();scope.setPaused(false);scope.invalidate();timer.setText("00:00");playback=file!=null;engine.start(file);refreshCompare();listen.setText(R.string.pause_scope);record.setEnabled(!playback);record.setAlpha(playback?.45f:1);stop.setVisibility(View.VISIBLE);state.setText(file==null?s(R.string.live_status):s(R.string.playback,file.getName().replace(".wav","")));showRecordings(false);}
  private void recordAction(){try{if(engine.isRecording()){engine.finishRecord();record.setText(R.string.record);styleRecording(false);File saved=recording;recording=null;saveRecording(saved);}else{File dir=new File(getFilesDir(),"sessions");if(!dir.exists()&&!dir.mkdirs())throw new IOException(s(R.string.err_save,"storage unavailable"));File target=new File(dir,"Session_"+new SimpleDateFormat("yyyyMMdd_HHmmss_SSS",Locale.ROOT).format(new Date())+".wav");engine.record(target);recording=target;recordingStartFrame=engine.processedFrames();timer.setText("00:00");record.setText(R.string.finish);styleRecording(true);}}catch(IOException e){Toast.makeText(this,e.getMessage(),Toast.LENGTH_LONG).show();}}
  private void showRecordings(boolean show){showingRecordings=show;scopePanel.setVisibility(show?View.GONE:View.VISIBLE);recordingsPanel.setVisibility(show?View.VISIBLE:View.GONE);back.setVisibility(show?View.VISIBLE:View.GONE);if(show)library();else scope.invalidate();}
- private void updateDisplay(){displayInfo.setText(s(R.string.display_info,s(engine.compareRaw||!engine.settings.enabled?R.string.original:R.string.filtered),formatSpeed(scrollSpeed),s(envelopeDisplay?R.string.envelope:R.string.waveform)));}
+ private void updateDisplay(){
+  String processing=engine.compareRaw||!engine.settings.enabled?s(R.string.original):s(R.string.filtered);
+  if(engine.pitchEnabled&&!engine.compareRaw&&engine.pitchFactor>1.01&&engine.pitchMix>0)
+   processing=String.format(Locale.ROOT,"Pitch ×%.1f",engine.pitchFactor);
+  displayInfo.setText(processing+" · "+s(envelopeDisplay?R.string.envelope:R.string.waveform)+" · "+formatSpeed(scrollSpeed)+"×");
+ }
  private String formatSpeed(double value){return value==.5?"0.5":value==1?"1":value==2?"2":"4";}
- private void loadSettings(){android.content.SharedPreferences p=getPreferences(0);scrollSpeed=p.getFloat("scroll",1);if(scrollSpeed!=.5&&scrollSpeed!=1&&scrollSpeed!=2&&scrollSpeed!=4)scrollSpeed=1;envelopeDisplay=p.getBoolean("envelope",true);engine.settings=new Dsp.Settings(p.getFloat("low",(float)Dsp.HEART_LOW_HZ),p.getFloat("high",(float)Dsp.HEART_HIGH_HZ),p.getFloat("gain",0),p.getBoolean("enabled",true),p.getBoolean("notch",false),p.getBoolean("focused",false));engine.rawCapture=p.getBoolean("raw_capture",true);try{engine.outputMode=AudioChannels.Mode.valueOf(p.getString("audio_output","LEFT"));}catch(IllegalArgumentException|NullPointerException ignored){engine.outputMode=AudioChannels.Mode.LEFT;}}
- private void persistSettings(){Dsp.Settings d=engine.settings;getPreferences(0).edit().putFloat("scroll",(float)scrollSpeed).putBoolean("envelope",envelopeDisplay).putFloat("low",(float)d.lowHz).putFloat("high",(float)d.highHz).putFloat("gain",(float)d.gainDb).putBoolean("enabled",d.enabled).putBoolean("notch",d.notch).putBoolean("focused",d.focused).putBoolean("raw_capture",engine.rawCapture).putString("audio_output",engine.outputMode.name()).apply();updateDisplay();}
- private void refreshCompare(){if(compareButton==null)return;compareButton.setText(engine.compareRaw?R.string.compare_raw:R.string.compare_filtered);selected(compareButton,engine.compareRaw);updateDisplay();}
+ private void loadSettings(){android.content.SharedPreferences p=getPreferences(0);scrollSpeed=p.getFloat("scroll",1);if(scrollSpeed!=.5&&scrollSpeed!=1&&scrollSpeed!=2&&scrollSpeed!=4)scrollSpeed=1;envelopeDisplay=p.getBoolean("envelope",true);engine.settings=new Dsp.Settings(p.getFloat("low",(float)Dsp.HEART_LOW_HZ),p.getFloat("high",(float)Dsp.HEART_HIGH_HZ),p.getFloat("gain",0),p.getBoolean("enabled",true),p.getBoolean("notch",false),p.getBoolean("focused",false));engine.rawCapture=p.getBoolean("raw_capture",true);engine.pitchEnabled=p.getBoolean("pitch_enabled",false);engine.pitchFactor=Math.max(1,Math.min(5,p.getFloat("pitch_factor",3)));engine.pitchMix=Math.max(0,Math.min(100,p.getInt("pitch_mix",100)));try{engine.outputMode=AudioChannels.Mode.valueOf(p.getString("audio_output","LEFT"));}catch(IllegalArgumentException|NullPointerException ignored){engine.outputMode=AudioChannels.Mode.LEFT;}}
+ private void persistSettings(){Dsp.Settings d=engine.settings;getPreferences(0).edit().putFloat("scroll",(float)scrollSpeed).putBoolean("envelope",envelopeDisplay).putFloat("low",(float)d.lowHz).putFloat("high",(float)d.highHz).putFloat("gain",(float)d.gainDb).putBoolean("enabled",d.enabled).putBoolean("notch",d.notch).putBoolean("focused",d.focused).putBoolean("raw_capture",engine.rawCapture).putBoolean("pitch_enabled",engine.pitchEnabled).putFloat("pitch_factor",(float)engine.pitchFactor).putInt("pitch_mix",engine.pitchMix).putString("audio_output",engine.outputMode.name()).apply();updateDisplay();refreshQuickModes();}
+ private void refreshCompare(){
+  if(compareButton==null)return;
+  compareButton.setText(engine.compareRaw?R.string.compare_raw:engine.pitchEnabled&&engine.pitchFactor>1.01?R.string.compare_shifted:R.string.compare_filtered);
+  selected(compareButton,engine.compareRaw);updateDisplay();
+ }
+ private void quickPreset(boolean lungs){
+  Dsp.Settings d=engine.settings;
+  engine.settings=new Dsp.Settings(lungs?Dsp.LUNGS_LOW_HZ:Dsp.HEART_LOW_HZ,
+    lungs?Dsp.LUNGS_HIGH_HZ:Dsp.HEART_HIGH_HZ,d.gainDb,true,d.notch,d.focused);
+  persistSettings();
+ }
+ private void refreshQuickModes(){
+  if(quickModes==null)return;
+  Dsp.Settings d=engine.settings;
+  boolean lungs=d.enabled&&d.lowHz==Dsp.LUNGS_LOW_HZ&&d.highHz==Dsp.LUNGS_HIGH_HZ;
+  boolean heart=d.enabled&&d.lowHz==Dsp.HEART_LOW_HZ&&(d.highHz==Dsp.HEART_HIGH_HZ||d.highHz==160);
+  selected(quickModes[0],heart);selected(quickModes[1],lungs);selected(quickModes[2],!heart&&!lungs);
+ }
  private void styleRecording(boolean active){if(record==null)return;record.setBackground(shape(active?0xFFE65A53:YELLOW));record.setTextColor(active?Color.WHITE:INK);if(timer!=null)timer.setTextColor(active?0xFFE65A53:fg);}
  private void updateMeter(){if(inputMeter==null||levelInfo==null)return;float in=engine.inputPeak;
   boolean clipped=in>=.985f;boolean limited=engine.limiterActive;
