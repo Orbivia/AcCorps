@@ -1,7 +1,16 @@
-# AcCorps Android — prototype 0.6.0
+# AcCorps Android — prototype 0.7.0
 
 Application Android native Java, Android 8+ : écoute externe en direct, gain manuel, filtres Cœur / Poumons / Brut, forme d’onde, enregistrements WAV PCM mono 48 kHz 16 bits, réécoute avec réglages et export par le sélecteur Android. Aucune permission Internet, fichiers privés, sauvegarde système désactivée.
 
+
+## 0.7.0 — Scope priority, quick modes, experimental pitch shift
+- Portrait display: slightly smaller header and controls, 6-second default oscilloscope, higher-contrast yellow waveform/envelope, tap toggles 1× / 2× zoom. Original scope history remains 1 ms min/max + RMS.
+- Quick Heart / Lungs buttons apply the existing 20–600 Hz and 80–3000 Hz exploratory filter presets. Custom opens the existing filters panel. Existing Heart low, Heart full, Raw and Focused choices are retained.
+- Dialog display is fitted to each tab; Audio contains output routing, pitch controls and gain, Filters contains high-pass/low-pass, presets, notch and character.
+- Experimental real-time transposition, factor ×1.0–×5.0, 0–100% shifted mix, no change to recorded timebase. Two overlapping grains are used; artifacts and ~100 ms of initial processing history are possible, and real-device latency is not verified. Pitch is **off by default**.
+- A/B bypasses frequency filters and pitch transposition for monitoring (existing gain and limiter still apply). The scope is drawn from pre-transposition processed audio to preserve visual clarity.
+- **Original 48 kHz mono PCM WAV is still saved before DSP**, and only monitoring/playback applies the experimental transposition. No clinical validation. Listen at low volume, especially when changing gain.
+- Java tests: pitch-up responses to 40, 60 and 100 Hz synthetic input, plus legacy DSP and scope history tests. Android Gradle assembleDebug and lintDebug are performed in CI. Test builds are disposable debug signatures.
 
 ## 0.6.0 — Scope, ergonomie et comparaison audio
 - Affichage à échelle verticale progressive : la référence suit immédiatement les pics puis décroît progressivement pour limiter les changements brusques de taille. La graduation reste relative, non calibrée.
@@ -26,7 +35,7 @@ AudioRecord UNPROCESSED → passe-haut/passe-bas Butterworth du deuxième ordre 
 
 ## Compilation
 JDK 17, Android SDK 35, Gradle 8.11.1 : `gradle :app:assembleDebug :app:lintDebug`.
-Le workflow GitHub conserve l’APK dans une release de test en brouillon privée (le nom de tag doit être incrémenté pour les prochaines versions). Il construit un APK de test signé avec la clé debug éphémère du runner (désinstaller l’ancienne build si signature différente). Pas de clé de production dans le dépôt.
+Le workflow GitHub publie l'APK de test dans une release privée versionnée et comme artefact téléchargeable du workflow. Il construit un APK de test signé avec la clé debug éphémère du runner (désinstaller l’ancienne build si signature différente). Pas de clé de production dans le dépôt.
 
 ## Limites et validation matérielle à réaliser
 Latence réelle non mesurée ; le mode faible latence est une demande au système. Vérifier sur le téléphone de Pierre : sélection réelle du micro TRRS/USB, écoute simultanée, gain, débranchement, interruption/appels, saturation, fichiers et export, économie d’énergie. L’application n’enregistre pas en arrière-plan. Le conduit imprimé et la réponse fréquentielle du micro restent à caractériser. Les filtres ne recréent pas des fréquences absentes de la captation. Prototype, pas d’usage diagnostic validé.
