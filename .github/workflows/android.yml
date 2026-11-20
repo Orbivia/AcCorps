@@ -37,10 +37,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create accorps-test-0.7.0-20261120 app/build/outputs/apk/debug/app-debug.apk \\
-            --draft=false --latest=false --target "${{ github.sha }}" \\
-            --title "AcCorps 0.7.0 — Scope & Pitch prototype" \\
-            --notes "Experimental build: larger 6-second scope; quick heart/lungs modes; adjustable monitoring pitch x1-x5 and mix; unprocessed WAV preserved. Not clinically validated."
+          gh release create accorps-test-0.7.0-20261120 app/build/outputs/apk/debug/app-debug.apk --draft=false --latest=false --target "${{ github.sha }}" --title "AcCorps 0.7.0 - Scope and Pitch prototype" --notes "Experimental build: larger 6-second scope, quick heart/lungs modes, adjustable monitoring pitch x1-x5 and mix; unprocessed WAV preserved. Not clinically validated."
       - name: Verify APK checksum
         run: |
           sha256sum app/build/outputs/apk/debug/app-debug.apk
