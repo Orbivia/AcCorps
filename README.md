@@ -1,3 +1,7 @@
+# AcCorps 0.7.1 — Pause audio
+
+Pause coupe la sortie audio et suspend le tracé, le compteur et les données ajoutées au WAV. Reprendre poursuit la même session. En direct, les données micro reçues pendant la pause sont écartées ; en réécoute, la position du fichier est conservée (hors bloc déjà en cours). Stop termine également une session en pause.
+
 # AcCorps Android — prototype 0.7.0
 
 Application Android native Java, Android 8+ : écoute externe en direct, gain manuel, filtres Cœur / Poumons / Brut, forme d’onde, enregistrements WAV PCM mono 48 kHz 16 bits, réécoute avec réglages et export par le sélecteur Android. Aucune permission Internet, fichiers privés, sauvegarde système désactivée.
@@ -45,7 +49,7 @@ https://developer.android.com/reference/android/media/AudioRecord
 https://developer.android.com/reference/android/media/AudioTrack
 
 ## Essential 0.5.0
-Scope en paysage (sensorLandscape), entête compact et historique audio glissant. Tous les blocs audio alimentent un tampon min/max à 1 ms : le rafraîchissement de l’écran ne supprime aucun bloc du tracé. Fenêtres 10 s / 5 s / 2,5 s pour les vitesses 0,5× / 1× / 2×, sans changer l’audio. Affichage d’amplitude à échelle automatique. « Pause scope » fige uniquement le tracé ; le son et l’enregistrement continuent. « Stop » termine la session audio.
+Scope en paysage (sensorLandscape), entête compact et historique audio glissant. Tous les blocs audio alimentent un tampon min/max à 1 ms : le rafraîchissement de l’écran ne supprime aucun bloc du tracé. Fenêtres 10 s / 5 s / 2,5 s pour les vitesses 0,5× / 1× / 2×, sans changer l’audio. Affichage d’amplitude à échelle automatique. Depuis 0.7.1, « Pause » suspend aussi le son et l’enregistrement. « Stop » termine la session audio.
 
 Réglages centralisés dans l’engrenage : boutons de vitesse, profils, pas numériques ± et saisie directe, activation des filtres, réjecteur 50 Hz, gain et réinitialisation. Aucune SeekBar ni contrôle de plage. Réglages mémorisés sur le téléphone. Liste des WAV avec aperçus réels sous-échantillonnés, lecture, export, renommage et suppression avec confirmation. Nommage à la fin de l’enregistrement, avec conservation ou abandon confirmé.
 

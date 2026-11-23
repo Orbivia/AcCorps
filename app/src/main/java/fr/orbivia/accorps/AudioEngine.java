@@ -10,6 +10,8 @@ public final class AudioEngine {
  private final Context context;
  private final Listener listener;
  private volatile boolean running;
+ private final Object transport = new Object();
+ private volatile boolean paused;
  private volatile boolean captureReady;
  private volatile boolean liveListening;
  private Thread worker;
@@ -34,14 +36,23 @@ public final class AudioEngine {
  public AudioDeviceInfo outputDevice() { for(AudioDeviceInfo d:manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) if(wired(d) || d.getType()==AudioDeviceInfo.TYPE_WIRED_HEADPHONES) return d; return null; }
  public synchronized boolean isRunning() { return worker!=null; }
  public synchronized boolean isRecording() { return wav!=null; }
+ public boolean isPaused(){return paused;}
+ public void setPaused(boolean value) {
+  synchronized(transport) {
+   paused=value;
+   AudioTrack t=output;
+   if(t!=null) try { if(value){t.pause();t.flush();}else if(running)t.play(); } catch(IllegalStateException ignored) {}
+   transport.notifyAll();
+  }
+ }
  public boolean isLiveListening(){return running && liveListening;}
  public synchronized void record(File f) throws IOException { if(worker==null||!running||!captureReady) throw new IOException(context.getString(R.string.err_start_record)); if(wav==null) wav=new Wav(f); }
  public synchronized void finishRecord() throws IOException { if(wav!=null) { Wav w=wav; wav=null; w.close(); } }
  public synchronized void start(File playback) {
   if(worker!=null) return;
-  processedFrames=0;inputPeak=0;outputPeak=0;limiterActive=false;compareRaw=false;captureReady=false;liveListening=playback==null;running=true; worker=new Thread(()->loop(playback),"AcCorps-audio"); worker.start();
+  paused=false;processedFrames=0;inputPeak=0;outputPeak=0;limiterActive=false;compareRaw=false;captureReady=false;liveListening=playback==null;running=true; worker=new Thread(()->loop(playback),"AcCorps-audio"); worker.start();
  }
- public void stop() { running=false; AudioTrack t=output; if(t!=null) try { t.pause(); t.flush(); } catch(IllegalStateException ignored) {} }
+ public void stop() { synchronized(transport) { running=false; transport.notifyAll(); AudioTrack t=output; if(t!=null) try { t.pause(); t.flush(); } catch(IllegalStateException ignored) {} } }
  @android.annotation.SuppressLint("MissingPermission")
  private void loop(File playback) {
   AudioRecord mic=null; AudioTrack track=null; RandomAccessFile file=null; String error=null;
@@ -68,17 +79,25 @@ public final class AudioEngine {
    } else { if(Wav.dataBytes(playback)<=0)throw new IOException(context.getString(R.string.invalid_recording));file=new RandomAccessFile(playback,"r");file.seek(44); }
    Dsp dsp=new Dsp(); PitchShifter pitch=new PitchShifter();
    short[] raw=new short[480],processed=new short[480],monitor=new short[480],stereo=new short[960];byte[] bytes=new byte[960];
-   track.play();
+   synchronized(transport) { if(running && !paused)track.play(); }
    while(running) {
+    if(!live) synchronized(transport) { while(paused && running)transport.wait(); }
+    if(!running)break;
     int n;
     if(file==null) { n=mic.read(raw,0,raw.length,AudioRecord.READ_BLOCKING); if(n<=0) throw new IOException(context.getString(R.string.err_mic_read)); }
     else { int count=file.read(bytes); if(count<0) break; n=count/2; for(int i=0;i<n;i++) raw[i]=(short)((bytes[2*i]&255)|(bytes[2*i+1]<<8)); }
+    if(!running)break;
+    // Drain live input while paused so resuming never replays buffered microphone audio.
+    if(live && paused)continue;
     AudioDeviceInfo routed=track.getRoutedDevice();
     if(live){
      if(outputDevice()==null||inputDevice()==null)throw new IOException(context.getString(R.string.err_unplugged));
      if(routed!=null&&routed.getId()!=sink.getId())throw new IOException(context.getString(R.string.err_route));
      if(mic.getRoutedDevice()!=null&&mic.getRoutedDevice().getId()!=source.getId())throw new IOException(context.getString(R.string.err_source));
     }
+    synchronized(transport) {
+    if(!live)while(paused && running)transport.wait();
+    if(paused || !running)continue;
     synchronized(this) { if(wav!=null) wav.write(raw,n); }
     Dsp.Settings current=settings;
     if(compareRaw && current.enabled)current=new Dsp.Settings(current.lowHz,current.highHz,current.gainDb,false,current.notch,current.focused);
@@ -97,13 +116,14 @@ public final class AudioEngine {
     int offset=0; while(offset<samples && running) { int written=track.write(stereo,offset,samples-offset,AudioTrack.WRITE_BLOCKING); if(written<=0) throw new IOException(context.getString(R.string.err_write)); offset+=written; }
     processedFrames+=n;
     listener.block(processed,n);
+    }
    }
    // Allow the last queued playback block to finish before releasing the track.
    if(file!=null && running) { Thread.sleep(80); }
   } catch(Exception e) { error=e.getMessage(); }
   finally {
    if(mic!=null) { try { mic.stop(); } catch(Exception ignored) {} mic.release(); }
-   output=null;
+   synchronized(transport) { output=null; }
    manager.abandonAudioFocusRequest(focus);
    if(track!=null) { try { track.stop(); } catch(Exception ignored) {} track.release(); }
    if(file!=null) try { file.close(); } catch(IOException ignored) {}

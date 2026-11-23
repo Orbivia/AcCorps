@@ -34,7 +34,7 @@
  <string name="err_format">48 kHz audio is unavailable.</string><string name="err_output">Headphone output is unavailable.</string><string name="err_mic">External microphone is unavailable.</string>
  <string name="err_mic_read">Microphone reading was interrupted.</string><string name="err_unplugged">Headphones disconnected. Listening stopped.</string><string name="err_route">Audio output changed. Listening stopped.</string><string name="err_source">Microphone source changed.</string><string name="err_write">Audio output was interrupted.</string><string name="err_save">Recording could not be saved completely: %1$s</string>
 
- <string name="pause_scope">Pause scope</string><string name="resume_scope">Resume scope</string><string name="scope_paused">Scope paused · audio continues</string><string name="live_status">Live audio</string><string name="scope_settings">Settings</string><string name="settings_info">Open scope and audio settings</string>
+ <string name="pause_scope">Pause</string><string name="resume_scope">Resume</string><string name="scope_paused">Paused · audio and recording suspended</string><string name="live_status">Live audio</string><string name="scope_settings">Settings</string><string name="settings_info">Open scope and audio settings</string>
  <string name="capture_source">Microphone input (restart listening to apply)</string><string name="raw_capture">Unprocessed</string><string name="standard_capture">Standard MIC</string>
  <string name="filter_character">Filter character</string><string name="natural">Natural</string><string name="focused">Focused</string>
  <string name="graph_mode">Graph display</string><string name="envelope">Envelope</string><string name="waveform">Waveform</string>

@@ -110,7 +110,7 @@ public final class MainActivity extends Activity {
   setContentView(root);root.requestApplyInsets();updateDisplay();library();((AudioManager)getSystemService(AUDIO_SERVICE)).registerAudioDeviceCallback(devices,ui);ui.post(tick);
  }
  private void listenAction(){
-  if(engine.isRunning()){scope.setPaused(!scope.isPaused());listen.setText(scope.isPaused()?R.string.resume_scope:R.string.pause_scope);state.setText(scope.isPaused()?s(R.string.scope_paused):playback?s(R.string.playback,""):s(R.string.live_status));return;}
+  if(engine.isRunning()){engine.setPaused(!engine.isPaused());scope.setPaused(engine.isPaused());listen.setText(scope.isPaused()?R.string.resume_scope:R.string.pause_scope);state.setText(scope.isPaused()?s(R.string.scope_paused):playback?s(R.string.playback,""):s(R.string.live_status));return;}
   if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},1);return;}start(null);
  }
  private void start(File file){history.clear();scope.setPaused(false);scope.invalidate();timer.setText("00:00");playback=file!=null;engine.start(file);refreshCompare();listen.setText(R.string.pause_scope);record.setEnabled(!playback);record.setAlpha(playback?.45f:1);stop.setVisibility(View.VISIBLE);state.setText(file==null?s(R.string.live_status):s(R.string.playback,file.getName().replace(".wav","")));showRecordings(false);}
